@@ -90,40 +90,49 @@ export const getPdfUrl = query({
 
 // Manual invoice generation trigger
 export const generateNow = action({
-  args: { orgId: v.id("organizations") },
+  args: {
+    orgId: v.id("organizations"),
+    startDate: v.optional(v.string()),
+    endDate: v.optional(v.string()),
+  },
   handler: async (ctx, args): Promise<number> => {
     const org: any = await ctx.runQuery(internal.invoiceGenerationHelpers.getOrgById, {
       orgId: args.orgId,
     });
     if (!org) throw new Error("Organization not found");
 
-    const today = new Date();
+    let startStr: string;
+    let endStr: string;
 
-    // Try previous month first
-    const periodEnd = new Date(today.getFullYear(), today.getMonth(), 0);
-    const periodStart = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), 1);
-    let startStr = periodStart.toISOString().split("T")[0];
-    let endStr = periodEnd.toISOString().split("T")[0];
+    if (args.startDate && args.endDate) {
+      // Manual mode — use provided dates
+      startStr = args.startDate;
+      endStr = args.endDate;
+    } else {
+      // Auto mode — calculate from invoiceDayOfMonth
+      const today = new Date();
+      const invoiceDay = org.invoiceDayOfMonth ?? 1;
 
-    let allBookings: any[] = await ctx.runQuery(
+      // Period end = most recent invoiceDay (or today if today is invoiceDay)
+      let pEnd = new Date(today.getFullYear(), today.getMonth(), invoiceDay);
+      if (pEnd > today) {
+        pEnd = new Date(today.getFullYear(), today.getMonth() - 1, invoiceDay);
+      }
+
+      // Period start = day after previous invoiceDay
+      const pStart = new Date(pEnd.getFullYear(), pEnd.getMonth() - 1, invoiceDay + 1);
+
+      startStr = pStart.toISOString().split("T")[0];
+      endStr = pEnd.toISOString().split("T")[0];
+    }
+
+    const allBookings: any[] = await ctx.runQuery(
       internal.invoiceGenerationHelpers.getBillableBookings,
       { orgId: args.orgId, startDate: startStr, endDate: endStr }
     );
 
-    // If no previous month bookings, try current month
     if (allBookings.length === 0) {
-      const cmStart = new Date(today.getFullYear(), today.getMonth(), 1);
-      startStr = cmStart.toISOString().split("T")[0];
-      endStr = today.toISOString().split("T")[0];
-
-      allBookings = await ctx.runQuery(
-        internal.invoiceGenerationHelpers.getBillableBookings,
-        { orgId: args.orgId, startDate: startStr, endDate: endStr }
-      );
-
-      if (allBookings.length === 0) {
-        throw new Error("No billable bookings found for invoice generation");
-      }
+      throw new Error(`No billable bookings found for period ${startStr} to ${endStr}`);
     }
 
     // Group by user

@@ -49,6 +49,8 @@ export const update = mutation({
     phone: v.optional(v.string()),
     email: v.optional(v.string()),
     logoUrl: v.optional(v.string()),
+    invoicesEnabled: v.optional(v.boolean()),
+    invoiceMode: v.optional(v.union(v.literal("auto"), v.literal("manual"))),
     invoiceDayOfMonth: v.optional(v.number()),
     invoicePrefix: v.optional(v.string()),
     currency: v.optional(v.string()),

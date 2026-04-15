@@ -36,6 +36,8 @@ export default function SettingsPage() {
 
   const [companyName, setCompanyName] = useState("");
   const [companyLogoUrl, setCompanyLogoUrl] = useState("");
+  const [invoicesEnabled, setInvoicesEnabled] = useState(true);
+  const [invoiceMode, setInvoiceMode] = useState<"auto" | "manual">("auto");
   const [invoiceDayOfMonth, setInvoiceDayOfMonth] = useState("1");
   const [invoicePrefix, setInvoicePrefix] = useState("INV");
   const [vatNumber, setVatNumber] = useState("");
@@ -59,6 +61,8 @@ export default function SettingsPage() {
       setCompanyLogoUrl(convexOrg.logoUrl ?? "");
       setCalendarTheme((convexOrg.calendarTheme as CalendarThemeId) ?? "ocean");
       setDarkMode(convexOrg.darkMode ?? false);
+      setInvoicesEnabled(convexOrg.invoicesEnabled !== false);
+      setInvoiceMode((convexOrg.invoiceMode as "auto" | "manual") ?? "auto");
       setInvoiceDayOfMonth(String(convexOrg.invoiceDayOfMonth));
       setInvoicePrefix(convexOrg.invoicePrefix);
       setVatNumber(convexOrg.vatNumber ?? "");
@@ -100,6 +104,8 @@ export default function SettingsPage() {
         showBookerNames,
         showBookerContact: showBookerNames ? showBookerContact : false,
         subscriptionTier,
+        invoicesEnabled,
+        invoiceMode,
         invoiceDayOfMonth: parseInt(invoiceDayOfMonth),
         invoicePrefix,
         vatNumber: vatNumber || undefined,
@@ -229,21 +235,6 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Dark/Light Mode */}
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Dark Mode</Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Switch between light and dark interface.
-                </p>
-              </div>
-              <Switch
-                checked={darkMode}
-                onCheckedChange={setDarkMode}
-              />
-            </div>
-
-            <Separator />
 
             {/* Calendar Theme */}
             <div className="space-y-3">
@@ -284,63 +275,6 @@ export default function SettingsPage() {
                   </div>
                 ))}
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Subscription Tier */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Subscription Plan</CardTitle>
-            <CardDescription>
-              Your current plan determines which features are available.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <Select
-              value={subscriptionTier}
-              onValueChange={(v) => v && setSubscriptionTier(v as SubscriptionTier)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {(Object.entries(TIER_FEATURES) as [SubscriptionTier, typeof TIER_FEATURES.basic][]).map(
-                  ([key, tier]) => (
-                    <SelectItem key={key} value={key}>
-                      {tier.label} — {tier.description}
-                    </SelectItem>
-                  )
-                )}
-              </SelectContent>
-            </Select>
-            <div className="grid grid-cols-3 gap-3">
-              {(Object.entries(TIER_FEATURES) as [SubscriptionTier, typeof TIER_FEATURES.basic][]).map(
-                ([key, tier]) => (
-                  <div
-                    key={key}
-                    className={`rounded-lg border p-3 text-sm ${
-                      subscriptionTier === key
-                        ? "border-primary bg-primary/5"
-                        : ""
-                    }`}
-                  >
-                    <div className="font-medium mb-1 flex items-center gap-2">
-                      {tier.label}
-                      {subscriptionTier === key && (
-                        <Badge variant="default" className="text-[10px]">
-                          Current
-                        </Badge>
-                      )}
-                    </div>
-                    <ul className="text-xs text-muted-foreground space-y-0.5">
-                      {tier.features.map((f) => (
-                        <li key={f}>+ {f}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )
-              )}
             </div>
           </CardContent>
         </Card>
@@ -425,26 +359,63 @@ export default function SettingsPage() {
         {/* Invoice Settings */}
         <Card>
           <CardHeader>
-            <CardTitle>Invoice Settings</CardTitle>
-            <CardDescription>
-              Configure when and how invoices are generated.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="invoiceDay">
-                  Invoice Day of Month (1-28)
-                </Label>
-                <Input
-                  id="invoiceDay"
-                  type="number"
-                  min="1"
-                  max="28"
-                  value={invoiceDayOfMonth}
-                  onChange={(e) => setInvoiceDayOfMonth(e.target.value)}
-                />
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Invoicing</CardTitle>
+                <CardDescription>
+                  Configure when and how invoices are generated.
+                </CardDescription>
               </div>
+              <Switch
+                checked={invoicesEnabled}
+                onCheckedChange={setInvoicesEnabled}
+              />
+            </div>
+          </CardHeader>
+          {invoicesEnabled && (
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label>Generation Mode</Label>
+                <Select
+                  value={invoiceMode}
+                  onValueChange={(v) => v && setInvoiceMode(v as "auto" | "manual")}
+                >
+                  <SelectTrigger>
+                    <SelectValue>
+                      {invoiceMode === "auto" ? "Automatic (monthly)" : "Manual (choose dates)"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="auto">
+                      Automatic — generate on a specific day each month
+                    </SelectItem>
+                    <SelectItem value="manual">
+                      Manual — generate with custom date range
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {invoiceMode === "auto" && (
+                <div className="space-y-2">
+                  <Label htmlFor="invoiceDay">
+                    Invoice Day of Month (1-28)
+                  </Label>
+                  <Input
+                    id="invoiceDay"
+                    type="number"
+                    min="1"
+                    max="28"
+                    value={invoiceDayOfMonth}
+                    onChange={(e) => setInvoiceDayOfMonth(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Billing period runs from day {parseInt(invoiceDayOfMonth) + 1 > 28 ? 1 : parseInt(invoiceDayOfMonth) + 1} of
+                    the previous month to day {invoiceDayOfMonth} of the current month.
+                  </p>
+                </div>
+              )}
+
               <div className="space-y-2">
                 <Label htmlFor="invoicePrefix">Invoice Prefix</Label>
                 <Input
@@ -454,8 +425,8 @@ export default function SettingsPage() {
                   placeholder="INV"
                 />
               </div>
-            </div>
-          </CardContent>
+            </CardContent>
+          )}
         </Card>
 
         {/* Tax Settings */}

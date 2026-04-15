@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { DoorOpen, User, Settings, LogOut, Menu } from "lucide-react";
+import { DoorOpen, User, LogOut, Menu, Sun, Moon } from "lucide-react";
 import { ProfileDialog } from "./profile-dialog";
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void } = {}) {
@@ -60,8 +60,23 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void } = {}) {
           </span>
         </div>
 
+        <div className="flex items-center gap-1">
+          {/* Dark mode toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="cursor-pointer"
+            onClick={() => {
+              document.documentElement.classList.toggle("dark");
+            }}
+            title="Toggle dark mode"
+          >
+            <Sun className="h-4 w-4 dark:hidden" />
+            <Moon className="h-4 w-4 hidden dark:block" />
+          </Button>
+
         <DropdownMenu>
-          <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted transition-colors">
+          <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted transition-colors cursor-pointer">
             <Avatar className="h-8 w-8">
               {user?.imageUrl && !user.imageUrl.includes("img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdC") && (
                 <AvatarImage src={user.imageUrl} alt={displayName} />
@@ -91,16 +106,6 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void } = {}) {
               <User className="h-4 w-4 mr-2" />
               Profile
             </DropdownMenuItem>
-            {isOwner && (
-              <>
-                <DropdownMenuItem
-                  onClick={() => (window.location.href = "/settings")}
-                >
-                  <Settings className="h-4 w-4 mr-2" />
-                  Settings
-                </DropdownMenuItem>
-              </>
-            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() => signOut({ redirectUrl: "/" })}
@@ -111,6 +116,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void } = {}) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </header>
 
       <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} />

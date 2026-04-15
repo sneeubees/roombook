@@ -20,6 +20,7 @@ import {
   BarChart3,
   Settings,
   Shield,
+  History,
   type LucideIcon,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -36,6 +37,7 @@ const ownerLinks: NavLink[] = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/rooms", label: "Rooms", icon: DoorOpen },
   { href: "/bookings", label: "Bookings", icon: BookOpen },
+  { href: "/history", label: "Booking History", icon: History, requiredFeature: "history" },
   { href: "/team", label: "Team", icon: Users },
   { href: "/invoices", label: "Invoices", icon: FileText, requiredFeature: "invoices" },
   { href: "/reports", label: "Reports", icon: BarChart3, requiredFeature: "reports" },
@@ -46,6 +48,7 @@ const bookerLinks: NavLink[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/bookings", label: "My Bookings", icon: BookOpen },
+  { href: "/history", label: "Booking History", icon: History, requiredFeature: "history" },
   { href: "/invoices", label: "Invoices", icon: FileText, requiredFeature: "invoices" },
 ];
 
@@ -61,10 +64,13 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
     user?.id ? { userId: user.id } : "skip"
   );
 
+  const invoicesOn = convexOrg?.invoicesEnabled !== false;
   const allLinks = isOwner ? ownerLinks : bookerLinks;
-  const links = allLinks.filter(
-    (link) => !link.requiredFeature || can(link.requiredFeature)
-  );
+  const links = allLinks.filter((link) => {
+    if (link.requiredFeature && !can(link.requiredFeature)) return false;
+    if (link.href === "/invoices" && !invoicesOn) return false;
+    return true;
+  });
 
   // Add admin link for super admin
   if (isSuperAdmin) {

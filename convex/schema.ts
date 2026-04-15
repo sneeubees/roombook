@@ -11,6 +11,8 @@ export default defineSchema({
     phone: v.optional(v.string()),
     email: v.optional(v.string()),
     logoUrl: v.optional(v.string()),
+    invoicesEnabled: v.optional(v.boolean()), // default true
+    invoiceMode: v.optional(v.union(v.literal("auto"), v.literal("manual"))), // default "auto"
     invoiceDayOfMonth: v.number(), // 1-28
     invoicePrefix: v.string(), // e.g. "INV"
     currency: v.string(), // default "ZAR"

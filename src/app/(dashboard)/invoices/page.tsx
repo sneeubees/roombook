@@ -25,6 +25,16 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { FileDown, FilePlus } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
@@ -41,7 +51,7 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
 
 export default function InvoicesPage() {
   const { user } = useUser();
-  const { orgId } = useOrgData();
+  const { orgId, convexOrg } = useOrgData();
   const { isOwner } = useUserRole();
   const { can } = useSubscriptionTier();
 
@@ -66,6 +76,10 @@ export default function InvoicesPage() {
 
   const generateInvoices = useAction(api.invoices.generateNow);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [showDateDialog, setShowDateDialog] = useState(false);
+  const [genStartDate, setGenStartDate] = useState("");
+  const [genEndDate, setGenEndDate] = useState("");
+  const invoiceMode = convexOrg?.invoiceMode ?? "auto";
 
   const bookerIds = useMemo(() => {
     const ids = new Set<string>();
@@ -95,17 +109,18 @@ export default function InvoicesPage() {
           <Button
             variant="outline"
             disabled={isGenerating}
-            onClick={async () => {
-              setIsGenerating(true);
-              try {
-                const count = await generateInvoices({ orgId });
-                toast.success(`Generated ${count} invoice(s)`);
-              } catch (error) {
-                toast.error(
-                  error instanceof Error ? error.message : "Failed to generate invoices"
-                );
-              } finally {
-                setIsGenerating(false);
+            onClick={() => {
+              if (invoiceMode === "manual") {
+                setShowDateDialog(true);
+              } else {
+                // Auto mode — generate with invoice day logic
+                setIsGenerating(true);
+                generateInvoices({ orgId })
+                  .then((count) => toast.success(`Generated ${count} invoice(s)`))
+                  .catch((error) =>
+                    toast.error(error instanceof Error ? error.message : "Failed to generate")
+                  )
+                  .finally(() => setIsGenerating(false));
               }
             }}
           >
@@ -204,6 +219,67 @@ export default function InvoicesPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Date Range Dialog for Manual Invoice Generation */}
+      <Dialog open={showDateDialog} onOpenChange={setShowDateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate Invoices</DialogTitle>
+            <DialogDescription>
+              Select the billing period for invoice generation.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Start Date</Label>
+                <Input
+                  type="date"
+                  value={genStartDate}
+                  onChange={(e) => setGenStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>End Date</Label>
+                <Input
+                  type="date"
+                  value={genEndDate}
+                  onChange={(e) => setGenEndDate(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDateDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={isGenerating || !genStartDate || !genEndDate}
+              onClick={async () => {
+                if (!orgId) return;
+                setIsGenerating(true);
+                try {
+                  const count = await generateInvoices({
+                    orgId,
+                    startDate: genStartDate,
+                    endDate: genEndDate,
+                  });
+                  toast.success(`Generated ${count} invoice(s)`);
+                  setShowDateDialog(false);
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error ? error.message : "Failed to generate"
+                  );
+                } finally {
+                  setIsGenerating(false);
+                }
+              }}
+            >
+              {isGenerating ? "Generating..." : "Generate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
