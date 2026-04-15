@@ -638,9 +638,9 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Calendar</h1>
-        <div className="flex items-center gap-4">
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">Calendar</h1>
           {/* View mode toggle */}
           <div className="flex border rounded-md">
             {(["month", "week", "day"] as const).map((mode) => (
@@ -658,27 +658,28 @@ export default function CalendarPage() {
               </Button>
             ))}
           </div>
+        </div>
 
-          {/* Navigation */}
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => {
-                if (viewMode === "month") setCurrentMonth(subMonths(currentMonth, 1));
-                else if (viewMode === "week") setCurrentDate(subWeeks(currentDate, 1));
-                else setCurrentDate(subDays(currentDate, 1));
-              }}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <h2 className="text-lg font-semibold min-w-[180px] text-center">
-              {viewMode === "month"
-                ? format(currentMonth, "MMMM yyyy")
-                : viewMode === "week"
-                  ? `${format(weekStart, "d MMM")} – ${format(weekEnd, "d MMM yyyy")}`
-                  : format(currentDate, "EEEE, d MMMM yyyy")}
-            </h2>
+        {/* Navigation — own row on mobile */}
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              if (viewMode === "month") setCurrentMonth(subMonths(currentMonth, 1));
+              else if (viewMode === "week") setCurrentDate(subWeeks(currentDate, 1));
+              else setCurrentDate(subDays(currentDate, 1));
+            }}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <h2 className="text-base md:text-lg font-semibold min-w-[160px] md:min-w-[180px] text-center">
+            {viewMode === "month"
+              ? format(currentMonth, "MMMM yyyy")
+              : viewMode === "week"
+                ? `${format(weekStart, "d MMM")} – ${format(weekEnd, "d MMM yyyy")}`
+                : format(currentDate, "EEE, d MMM yyyy")}
+          </h2>
             <Button
               variant="outline"
               size="icon"
@@ -690,17 +691,16 @@ export default function CalendarPage() {
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setCurrentMonth(new Date());
-                setCurrentDate(new Date());
-              }}
-            >
-              Today
-            </Button>
-          </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setCurrentMonth(new Date());
+              setCurrentDate(new Date());
+            }}
+          >
+            Today
+          </Button>
         </div>
       </div>
 
