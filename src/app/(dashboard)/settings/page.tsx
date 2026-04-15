@@ -520,6 +520,196 @@ export default function SettingsPage() {
           {isSubmitting ? "Saving..." : "Save Settings"}
         </Button>
       </form>
+
+      {/* White Label */}
+      <WhiteLabelSection orgId={convexOrg?._id} />
     </div>
+  );
+}
+
+function WhiteLabelSection({ orgId }: { orgId?: any }) {
+  const domains = useQuery(
+    api.domains.listByOrg,
+    orgId ? { orgId } : "skip"
+  );
+  const addDomain = useMutation(api.domains.add);
+  const markVerified = useMutation(api.domains.markVerified);
+  const removeDomain = useMutation(api.domains.remove);
+
+  const [newDomain, setNewDomain] = useState("");
+  const [isAdding, setIsAdding] = useState(false);
+  const [verifyingId, setVerifyingId] = useState<string | null>(null);
+
+  async function handleAdd() {
+    if (!orgId || !newDomain.trim()) return;
+    setIsAdding(true);
+    try {
+      await addDomain({ orgId, domain: newDomain.trim().toLowerCase() });
+      setNewDomain("");
+      toast.success("Domain added! Follow the DNS instructions below.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to add domain");
+    } finally {
+      setIsAdding(false);
+    }
+  }
+
+  async function handleVerify(domainId: string, domain: string) {
+    setVerifyingId(domainId);
+    try {
+      const res = await fetch("/api/domains/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain }),
+      });
+      const data = await res.json();
+
+      if (data.verified) {
+        await markVerified({ id: domainId as any });
+        // Provision Nginx + SSL
+        toast.success("DNS verified! Setting up SSL...");
+        const provRes = await fetch("/api/domains/provision", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain }),
+        });
+        const provData = await provRes.json();
+        if (provData.success) {
+          toast.success(`${domain} is live with SSL!`);
+        } else {
+          toast.error("SSL setup may take a few minutes. The domain will work on HTTP in the meantime.");
+        }
+      } else {
+        toast.error(data.message || "DNS not verified yet");
+      }
+    } catch (error) {
+      toast.error("Failed to verify domain");
+    } finally {
+      setVerifyingId(null);
+    }
+  }
+
+  async function handleRemove(domainId: string, domain: string) {
+    try {
+      await removeDomain({ id: domainId as any });
+      // Remove from Nginx
+      await fetch("/api/domains/provision", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ domain, action: "remove" }),
+      });
+      toast.success("Domain removed");
+    } catch (error) {
+      toast.error("Failed to remove domain");
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>White Label</CardTitle>
+        <CardDescription>
+          Add a custom subdomain so your users see your branding instead of
+          RoomBook.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Add domain */}
+        <div className="flex gap-2">
+          <Input
+            value={newDomain}
+            onChange={(e) => setNewDomain(e.target.value)}
+            placeholder="e.g., room.yourpractice.co.za"
+            className="flex-1"
+          />
+          <Button
+            onClick={handleAdd}
+            disabled={isAdding || !newDomain.trim()}
+          >
+            {isAdding ? "Adding..." : "Add Domain"}
+          </Button>
+        </div>
+
+        {/* Existing domains */}
+        {domains && domains.length > 0 && (
+          <div className="space-y-3">
+            {domains.map((d) => (
+              <div
+                key={d._id}
+                className="rounded-lg border p-3 space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm">{d.domain}</span>
+                    <Badge
+                      variant={d.isVerified ? "default" : "secondary"}
+                    >
+                      {d.isVerified ? "Verified" : "Pending"}
+                    </Badge>
+                  </div>
+                  <div className="flex gap-2">
+                    {!d.isVerified && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={verifyingId === d._id}
+                        onClick={() => handleVerify(d._id, d.domain)}
+                      >
+                        {verifyingId === d._id ? "Checking..." : "Verify DNS"}
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-destructive"
+                      onClick={() => handleRemove(d._id, d.domain)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                </div>
+
+                {!d.isVerified && (
+                  <div className="rounded bg-muted p-3 text-xs space-y-1">
+                    <p className="font-medium">DNS Setup Instructions:</p>
+                    <p>
+                      Add a <strong>CNAME</strong> record to your DNS:
+                    </p>
+                    <div className="font-mono bg-background rounded p-2 border">
+                      <p>Type: CNAME</p>
+                      <p>
+                        Name:{" "}
+                        {d.domain.split(".").length > 2
+                          ? d.domain.split(".")[0]
+                          : d.domain}
+                      </p>
+                      <p>Value: roombook.co.za</p>
+                    </div>
+                    <p className="text-muted-foreground mt-1">
+                      DNS changes can take up to 48 hours to propagate.
+                      Click &quot;Verify DNS&quot; once you&apos;ve added the record.
+                    </p>
+                  </div>
+                )}
+
+                {d.isVerified && (
+                  <p className="text-xs text-muted-foreground">
+                    Live at{" "}
+                    <a
+                      href={`https://${d.domain}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline"
+                    >
+                      https://{d.domain}
+                    </a>
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

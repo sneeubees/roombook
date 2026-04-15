@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useSubscriptionTier } from "@/hooks/use-subscription-tier";
 import { useOrgData } from "@/hooks/use-org-data";
+import { useCustomDomain } from "@/hooks/use-custom-domain";
 import { useQuery } from "convex/react";
 import { useUser } from "@clerk/nextjs";
 import { api } from "../../../convex/_generated/api";
@@ -55,6 +56,7 @@ const bookerLinks: NavLink[] = [
 export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const { isOwner, isSuperAdmin } = useUserRole();
+  const { isCustomDomain } = useCustomDomain();
   const { can } = useSubscriptionTier();
   const { convexOrg } = useOrgData();
   const { user } = useUser();

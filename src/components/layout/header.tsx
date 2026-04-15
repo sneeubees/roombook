@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useOrgData } from "@/hooks/use-org-data";
+import { useCustomDomain } from "@/hooks/use-custom-domain";
 import { useState } from "react";
 import Link from "next/link";
 import {
@@ -25,6 +26,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void } = {}) {
   const { signOut } = useClerk();
   const { isOwner } = useUserRole();
   const { convexOrg } = useOrgData();
+  const { isCustomDomain } = useCustomDomain();
   const [profileOpen, setProfileOpen] = useState(false);
 
   const convexUser = useQuery(
@@ -54,7 +56,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void } = {}) {
               <Menu className="h-5 w-5" />
             </Button>
           )}
-          <DoorOpen className="h-4 w-4 text-muted-foreground hidden md:block" />
+          {!isCustomDomain && <DoorOpen className="h-4 w-4 text-muted-foreground hidden md:block" />}
           <span className="text-sm font-medium hidden md:block">
             {convexOrg?.name ?? organization?.name ?? "Loading..."}
           </span>
