@@ -15,10 +15,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DoorOpen, User, Settings, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { DoorOpen, User, Settings, LogOut, Menu } from "lucide-react";
 import { ProfileDialog } from "./profile-dialog";
 
-export function Header() {
+export function Header({ onMenuClick }: { onMenuClick?: () => void } = {}) {
   const { organization } = useOrganization();
   const { user } = useUser();
   const { signOut } = useClerk();
@@ -43,8 +44,18 @@ export function Header() {
     <>
       <header className="flex items-center justify-between border-b px-6 py-3 bg-background">
         <div className="flex items-center gap-2">
-          <DoorOpen className="h-4 w-4 text-muted-foreground" />
-          <span className="text-sm font-medium">
+          {onMenuClick && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="md:hidden"
+              onClick={onMenuClick}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+          )}
+          <DoorOpen className="h-4 w-4 text-muted-foreground hidden md:block" />
+          <span className="text-sm font-medium hidden md:block">
             {convexOrg?.name ?? organization?.name ?? "Loading..."}
           </span>
         </div>

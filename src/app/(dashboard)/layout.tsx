@@ -2,7 +2,8 @@
 
 import { useOrganization, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
+import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
@@ -125,12 +126,25 @@ export default function DashboardLayout({
   const needsProfileSetup =
     convexUser !== undefined && convexUser?.isProfileComplete !== true;
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   return (
     <div className="flex h-screen">
-      <Sidebar />
+      {/* Desktop sidebar */}
+      <div className="hidden md:flex">
+        <Sidebar />
+      </div>
+
+      {/* Mobile sidebar sheet */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="left" className="p-0 w-64">
+          <Sidebar onNavigate={() => setMobileMenuOpen(false)} />
+        </SheetContent>
+      </Sheet>
+
       <div className="flex flex-1 flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <Header onMenuClick={() => setMobileMenuOpen(true)} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">{children}</main>
       </div>
       {needsProfileSetup && <FirstLoginModal open={true} />}
     </div>

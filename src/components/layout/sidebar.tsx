@@ -49,7 +49,7 @@ const bookerLinks: NavLink[] = [
   { href: "/invoices", label: "Invoices", icon: FileText, requiredFeature: "invoices" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const { isOwner, isSuperAdmin } = useUserRole();
   const { can } = useSubscriptionTier();
@@ -97,6 +97,7 @@ export function Sidebar() {
             <Link
               key={link.href}
               href={link.href}
+              onClick={onNavigate}
               className={cn(
                 "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 isActive
