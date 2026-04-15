@@ -410,8 +410,12 @@ export default function SettingsPage() {
                     onChange={(e) => setInvoiceDayOfMonth(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Billing period runs from day {parseInt(invoiceDayOfMonth) + 1 > 28 ? 1 : parseInt(invoiceDayOfMonth) + 1} of
-                    the previous month to day {invoiceDayOfMonth} of the current month.
+                    {(() => {
+                      const d = parseInt(invoiceDayOfMonth);
+                      const startDay = d + 1 > 28 ? 1 : d + 1;
+                      const startMonth = d + 1 > 28 ? "current" : "previous";
+                      return `Billing period: ${startDay}${startDay === 1 ? "st" : startDay === 2 ? "nd" : startDay === 3 ? "rd" : "th"} of ${startMonth} month → ${d}${d === 1 ? "st" : d === 2 ? "nd" : d === 3 ? "rd" : "th"} of current month`;
+                    })()}
                   </p>
                 </div>
               )}

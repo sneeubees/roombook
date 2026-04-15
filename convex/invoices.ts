@@ -110,17 +110,27 @@ export const generateNow = action({
       endStr = args.endDate;
     } else {
       // Auto mode — calculate from invoiceDayOfMonth
+      // Period end = invoiceDay of current (or most recent) month
+      // Period start = invoiceDay+1 of previous month
+      // Exception: if invoiceDay >= 28, start wraps to 1st of current month
       const today = new Date();
       const invoiceDay = org.invoiceDayOfMonth ?? 1;
 
-      // Period end = most recent invoiceDay (or today if today is invoiceDay)
+      // Period end = most recent invoiceDay
       let pEnd = new Date(today.getFullYear(), today.getMonth(), invoiceDay);
       if (pEnd > today) {
         pEnd = new Date(today.getFullYear(), today.getMonth() - 1, invoiceDay);
       }
 
-      // Period start = day after previous invoiceDay
-      const pStart = new Date(pEnd.getFullYear(), pEnd.getMonth() - 1, invoiceDay + 1);
+      // Period start: day after invoiceDay of the month before pEnd
+      let pStart: Date;
+      if (invoiceDay >= 28) {
+        // Wraps: start from 1st of the same month as pEnd
+        pStart = new Date(pEnd.getFullYear(), pEnd.getMonth(), 1);
+      } else {
+        // Normal: start from invoiceDay+1 of previous month
+        pStart = new Date(pEnd.getFullYear(), pEnd.getMonth() - 1, invoiceDay + 1);
+      }
 
       startStr = pStart.toISOString().split("T")[0];
       endStr = pEnd.toISOString().split("T")[0];

@@ -12,14 +12,19 @@ export const generateInvoices = internalAction({
 
     for (const org of orgs) {
       if (org.invoiceDayOfMonth !== dayOfMonth) continue;
+      if (org.invoiceMode === "manual") continue; // Skip auto-gen for manual orgs
+      if (org.invoicesEnabled === false) continue; // Skip if invoicing disabled
 
-      // Calculate billing period (previous month)
-      const periodEnd = new Date(today.getFullYear(), today.getMonth(), 0); // Last day of prev month
-      const periodStart = new Date(
-        periodEnd.getFullYear(),
-        periodEnd.getMonth(),
-        1
-      ); // First day of prev month
+      // Calculate billing period based on invoiceDay
+      const invoiceDay = org.invoiceDayOfMonth;
+      const periodEnd = new Date(today.getFullYear(), today.getMonth(), invoiceDay);
+
+      let periodStart: Date;
+      if (invoiceDay >= 28) {
+        periodStart = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), 1);
+      } else {
+        periodStart = new Date(periodEnd.getFullYear(), periodEnd.getMonth() - 1, invoiceDay + 1);
+      }
 
       const periodStartStr = periodStart.toISOString().split("T")[0];
       const periodEndStr = periodEnd.toISOString().split("T")[0];

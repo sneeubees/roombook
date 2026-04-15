@@ -110,18 +110,25 @@ export default function InvoicesPage() {
             variant="outline"
             disabled={isGenerating}
             onClick={() => {
-              if (invoiceMode === "manual") {
-                setShowDateDialog(true);
+              // Always show date dialog — for manual it's blank, for auto it's pre-filled
+              if (invoiceMode === "auto" && convexOrg) {
+                const today = new Date();
+                const invoiceDay = convexOrg.invoiceDayOfMonth ?? 1;
+                let pEnd = new Date(today.getFullYear(), today.getMonth(), invoiceDay);
+                if (pEnd > today) pEnd = new Date(today.getFullYear(), today.getMonth() - 1, invoiceDay);
+                let pStart: Date;
+                if (invoiceDay >= 28) {
+                  pStart = new Date(pEnd.getFullYear(), pEnd.getMonth(), 1);
+                } else {
+                  pStart = new Date(pEnd.getFullYear(), pEnd.getMonth() - 1, invoiceDay + 1);
+                }
+                setGenStartDate(pStart.toISOString().split("T")[0]);
+                setGenEndDate(pEnd.toISOString().split("T")[0]);
               } else {
-                // Auto mode — generate with invoice day logic
-                setIsGenerating(true);
-                generateInvoices({ orgId })
-                  .then((count) => toast.success(`Generated ${count} invoice(s)`))
-                  .catch((error) =>
-                    toast.error(error instanceof Error ? error.message : "Failed to generate")
-                  )
-                  .finally(() => setIsGenerating(false));
+                setGenStartDate("");
+                setGenEndDate("");
               }
+              setShowDateDialog(true);
             }}
           >
             <FilePlus className="h-4 w-4 mr-2" />
