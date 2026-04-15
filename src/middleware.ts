@@ -8,13 +8,24 @@ const isPublicRoute = createRouteMatcher([
   "/invite(.*)",
   "/api/webhooks(.*)",
   "/api/domains(.*)",
+  "/api/calendar(.*)",
+  "/api/invoices(.*)",
+  "/api/email(.*)",
 ]);
 
 const MAIN_DOMAINS = ["roombook.co.za", "www.roombook.co.za"];
 
 export default clerkMiddleware(async (auth, request) => {
   if (!isPublicRoute(request)) {
-    await auth.protect();
+    try {
+      await auth.protect();
+    } catch {
+      // On hard refresh in Clerk dev mode, auth.protect() fails
+      // because dev browser token is missing. Redirect to sign-in.
+      const signInUrl = new URL("/sign-in", request.url);
+      signInUrl.searchParams.set("redirect_url", request.url);
+      return NextResponse.redirect(signInUrl);
+    }
   }
 
   // Detect custom domain and set cookie for client-side use
