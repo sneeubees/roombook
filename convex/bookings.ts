@@ -608,3 +608,91 @@ export const update = mutation({
     return { rateApplied, waitlistNotified };
   },
 });
+
+export const editDetails = mutation({
+  args: {
+    id: v.id("bookings"),
+    description: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    startTime: v.optional(v.string()),
+    endTime: v.optional(v.string()),
+    slotType: v.optional(
+      v.union(
+        v.literal("full_day"),
+        v.literal("am"),
+        v.literal("pm"),
+        v.literal("session")
+      )
+    ),
+  },
+  handler: async (ctx, args) => {
+    const booking = await ctx.db.get(args.id);
+    if (!booking) throw new Error("Booking not found");
+    if (booking.status !== "confirmed") throw new Error("Cannot edit a cancelled booking");
+
+    const room = await ctx.db.get(booking.roomId);
+
+    const updates: Record<string, unknown> = {};
+
+    if (args.description !== undefined) updates.description = args.description || undefined;
+    if (args.notes !== undefined) updates.notes = args.notes || undefined;
+
+    // Handle time/slot changes
+    const newSlotType = args.slotType ?? booking.slotType;
+    const newStartTime = args.startTime ?? booking.startTime;
+    const newEndTime = args.endTime ?? booking.endTime;
+
+    if (args.slotType && args.slotType !== booking.slotType) {
+      updates.slotType = args.slotType;
+    }
+
+    if (newSlotType === "session" && (args.startTime || args.endTime)) {
+      const st = newStartTime ?? "09:00";
+      const et = newEndTime ?? "10:00";
+
+      if (st >= et) throw new Error("Start time must be before end time");
+
+      // Validate availability window
+      if (room?.availabilityStart && st < room.availabilityStart) {
+        throw new Error(`Room not available before ${room.availabilityStart}`);
+      }
+      if (room?.availabilityEnd && et > room.availabilityEnd) {
+        throw new Error(`Room not available after ${room.availabilityEnd}`);
+      }
+
+      // Check overlaps with OTHER bookings
+      const existingBookings = await ctx.db
+        .query("bookings")
+        .withIndex("by_room_date", (q) =>
+          q.eq("roomId", booking.roomId).eq("date", booking.date)
+        )
+        .collect();
+
+      for (const other of existingBookings) {
+        if (other._id === args.id || other.status !== "confirmed") continue;
+        if (other.slotType === "session" && other.startTime && other.endTime) {
+          if (timesOverlap(st, et, other.startTime, other.endTime)) {
+            throw new Error(`Overlaps with booking (${other.startTime}–${other.endTime})`);
+          }
+        }
+      }
+
+      updates.startTime = st;
+      updates.endTime = et;
+
+      // Recalculate rate
+      const duration = durationMinutes(st, et);
+      updates.rateApplied = Math.round((room?.hourlyRate ?? 0) * (duration / 60));
+    } else if (newSlotType !== "session" && args.slotType) {
+      // Changing to day-based slot
+      updates.rateApplied = newSlotType === "full_day"
+        ? (room?.fullDayRate ?? 0)
+        : (room?.halfDayRate ?? 0);
+      updates.startTime = undefined;
+      updates.endTime = undefined;
+    }
+
+    await ctx.db.patch(args.id, updates);
+    return true;
+  },
+});

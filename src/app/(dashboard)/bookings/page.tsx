@@ -33,9 +33,18 @@ import {
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Lock, CalendarDays, X, Download } from "lucide-react";
+import { Lock, CalendarDays, X, Download, Pencil } from "lucide-react";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { downloadBookingIcs } from "@/lib/download-ics";
 import { toast } from "sonner";
 import {
@@ -53,6 +62,7 @@ export default function BookingsPage() {
   const { can } = useSubscriptionTier();
   const hasHistory = can("history");
   const cancelBooking = useMutation(api.bookings.cancel);
+  const editBooking = useMutation(api.bookings.editDetails);
 
   const [period, setPeriod] = useState<"today" | "week" | "month" | "all">(
     hasHistory ? "week" : "today"
@@ -60,6 +70,12 @@ export default function BookingsPage() {
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [cancelTarget, setCancelTarget] = useState<Id<"bookings"> | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<Id<"bookings"> | null>(null);
+  const [editDescription, setEditDescription] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+  const [editStartTime, setEditStartTime] = useState("");
+  const [editEndTime, setEditEndTime] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const now = new Date();
@@ -239,6 +255,22 @@ export default function BookingsPage() {
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-1">
+                                {booking.status === "confirmed" && (isOwner || booking.userId === user?.id) && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => {
+                                      setEditTarget(booking._id);
+                                      setEditDescription(booking.description ?? "");
+                                      setEditNotes(booking.notes ?? "");
+                                      setEditStartTime(booking.startTime ?? "");
+                                      setEditEndTime(booking.endTime ?? "");
+                                      setEditDialogOpen(true);
+                                    }}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                )}
                                 {booking.status === "confirmed" && (
                                   <Button
                                     variant="ghost"
@@ -317,6 +349,99 @@ export default function BookingsPage() {
               disabled={isSubmitting}
             >
               {isSubmitting ? "Cancelling..." : "Confirm Cancel"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Booking Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Booking</DialogTitle>
+          </DialogHeader>
+          {editTarget && (() => {
+            const booking = allBookings?.find((b) => b._id === editTarget);
+            if (!booking) return null;
+            const room = rooms?.find((r) => r._id === booking.roomId);
+            const isSession = booking.slotType === "session";
+
+            return (
+              <div className="space-y-4">
+                <div className="text-sm text-muted-foreground">
+                  {room?.name} — {format(new Date(booking.date), "EEE, d MMM yyyy")}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Patient / Meeting Name</Label>
+                  <Input
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="e.g., John Smith"
+                  />
+                </div>
+
+                {isSession && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Start Time</Label>
+                      <Input
+                        type="time"
+                        value={editStartTime}
+                        onChange={(e) => setEditStartTime(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>End Time</Label>
+                      <Input
+                        type="time"
+                        value={editEndTime}
+                        onChange={(e) => setEditEndTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <Textarea
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    placeholder="Any additional notes..."
+                  />
+                </div>
+              </div>
+            );
+          })()}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={isSubmitting}
+              onClick={async () => {
+                if (!editTarget) return;
+                setIsSubmitting(true);
+                try {
+                  await editBooking({
+                    id: editTarget,
+                    description: editDescription || undefined,
+                    notes: editNotes || undefined,
+                    startTime: editStartTime || undefined,
+                    endTime: editEndTime || undefined,
+                  });
+                  toast.success("Booking updated");
+                  setEditDialogOpen(false);
+                } catch (error) {
+                  toast.error(
+                    error instanceof Error ? error.message : "Failed to update"
+                  );
+                } finally {
+                  setIsSubmitting(false);
+                }
+              }}
+            >
+              {isSubmitting ? "Saving..." : "Save Changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

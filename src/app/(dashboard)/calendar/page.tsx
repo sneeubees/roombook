@@ -112,6 +112,8 @@ export default function CalendarPage() {
   const [updateEndTime, setUpdateEndTime] = useState("10:00");
   const [selectedBookingId, setSelectedBookingId] = useState<Id<"bookings"> | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editNotes, setEditNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Calculate query date range based on view mode
@@ -157,6 +159,7 @@ export default function CalendarPage() {
   const createBooking = useMutation(api.bookings.create);
   const cancelBooking = useMutation(api.bookings.cancel);
   const updateBooking = useMutation(api.bookings.update);
+  const editBookingDetails = useMutation(api.bookings.editDetails);
   const joinWaitlist = useMutation(api.waitlist.join);
 
   // Month view days
@@ -330,8 +333,10 @@ export default function CalendarPage() {
     if (!booking) return;
     const isMine = booking.userId === user?.id;
     setSelectedBookingId(bookingId);
-    if (isMine) {
-      // Own booking → detail dialog with update + cancel
+    if (isMine || isOwner) {
+      // Own booking or owner → detail dialog with edit + cancel
+      setEditDescription(booking.description ?? "");
+      setEditNotes(booking.notes ?? "");
       if (booking.slotType === "session" && booking.startTime && booking.endTime) {
         setUpdateStartTime(booking.startTime);
         setUpdateEndTime(booking.endTime);
@@ -1073,37 +1078,82 @@ export default function CalendarPage() {
             const isSession = booking.slotType === "session" && booking.startTime && booking.endTime;
             return (
               <div className="space-y-4">
+                <div className="text-sm text-muted-foreground">
+                  {room?.name} — {format(new Date(booking.date), "EEE, d MMM yyyy")}
+                  {" — "}
+                  {isSession
+                    ? `${booking.startTime}–${booking.endTime}`
+                    : booking.slotType === "full_day"
+                      ? "Full Day"
+                      : booking.slotType.toUpperCase()}
+                  {" — R"}{(booking.rateApplied / 100).toFixed(2)}
+                </div>
+
                 <div className="space-y-2">
-                  <p><strong>Room:</strong> {room?.name}</p>
-                  <p><strong>Date:</strong> {format(new Date(booking.date), "EEEE, d MMMM yyyy")}</p>
-                  <p>
-                    <strong>Slot:</strong>{" "}
-                    {isSession
-                      ? `${booking.startTime}–${booking.endTime} (${durationLabel(booking.startTime!, booking.endTime!)})`
-                      : booking.slotType === "full_day"
-                        ? "Full Day"
-                        : booking.slotType.toUpperCase()}
-                  </p>
-                  <p><strong>Rate:</strong> R{(booking.rateApplied / 100).toFixed(2)}</p>
-                  {booking.description && (
-                    <p><strong>Description:</strong> {booking.description}</p>
-                  )}
+                  <Label>Patient / Meeting Name</Label>
+                  <Input
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="e.g., John Smith"
+                  />
+                </div>
+
+                {isSession && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Start Time</Label>
+                      <Input
+                        type="time"
+                        value={updateStartTime}
+                        onChange={(e) => setUpdateStartTime(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>End Time</Label>
+                      <Input
+                        type="time"
+                        value={updateEndTime}
+                        onChange={(e) => setUpdateEndTime(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <Label>Notes</Label>
+                  <Textarea
+                    value={editNotes}
+                    onChange={(e) => setEditNotes(e.target.value)}
+                    placeholder="Any additional notes..."
+                  />
                 </div>
 
                 <DialogFooter className="flex-col gap-2 sm:flex-col">
-                  {isSession && (
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setUpdateStartTime(booking.startTime!);
-                        setUpdateEndTime(booking.endTime!);
-                        setShowUpdateDialog(true);
-                      }}
-                      className="w-full"
-                    >
-                      Update Time
-                    </Button>
-                  )}
+                  <Button
+                    onClick={async () => {
+                      if (!selectedBookingId) return;
+                      setIsSubmitting(true);
+                      try {
+                        await editBookingDetails({
+                          id: selectedBookingId,
+                          description: editDescription || undefined,
+                          notes: editNotes || undefined,
+                          startTime: isSession ? updateStartTime : undefined,
+                          endTime: isSession ? updateEndTime : undefined,
+                        });
+                        toast.success("Booking updated");
+                        setShowDetailDialog(false);
+                      } catch (error) {
+                        toast.error(error instanceof Error ? error.message : "Failed to update");
+                      } finally {
+                        setIsSubmitting(false);
+                      }
+                    }}
+                    disabled={isSubmitting}
+                    className="w-full"
+                  >
+                    {isSubmitting ? "Saving..." : "Save Changes"}
+                  </Button>
                   <div className="space-y-2 w-full">
                     <Textarea
                       value={cancelReason}
