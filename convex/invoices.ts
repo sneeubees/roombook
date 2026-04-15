@@ -62,3 +62,27 @@ export const updateStatus = mutation({
     await ctx.db.patch(args.id, updates);
   },
 });
+
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const setPdfStorageId = mutation({
+  args: {
+    id: v.id("invoices"),
+    pdfStorageId: v.id("_storage"),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.id, { pdfStorageId: args.pdfStorageId });
+  },
+});
+
+export const getPdfUrl = query({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    return await ctx.storage.getUrl(args.storageId);
+  },
+});

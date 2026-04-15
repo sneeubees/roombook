@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 export const getAllOrgs = internalQuery({
   args: {},
@@ -125,6 +126,11 @@ export const createInvoiceWithLineItems = internalMutation({
       metadata: { invoiceId },
       isRead: false,
       emailSent: false,
+    });
+
+    // Schedule invoice email
+    await ctx.scheduler.runAfter(0, internal.emailActions.sendInvoiceEmail, {
+      invoiceId,
     });
 
     return invoiceId;

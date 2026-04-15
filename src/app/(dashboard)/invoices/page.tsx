@@ -135,11 +135,18 @@ export default function InvoicesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        {invoice.pdfStorageId && (
-                          <Button variant="ghost" size="icon">
-                            <FileDown className="h-4 w-4" />
-                          </Button>
-                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => {
+                            window.open(
+                              `/api/invoices/${invoice._id}/pdf`,
+                              "_blank"
+                            );
+                          }}
+                        >
+                          <FileDown className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}

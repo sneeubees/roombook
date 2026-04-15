@@ -10,6 +10,8 @@
 
 import type * as bookings from "../bookings.js";
 import type * as crons from "../crons.js";
+import type * as emailActions from "../emailActions.js";
+import type * as emailHelpers from "../emailHelpers.js";
 import type * as http from "../http.js";
 import type * as invitations from "../invitations.js";
 import type * as invoiceGeneration from "../invoiceGeneration.js";
@@ -31,6 +33,8 @@ import type {
 declare const fullApi: ApiFromModules<{
   bookings: typeof bookings;
   crons: typeof crons;
+  emailActions: typeof emailActions;
+  emailHelpers: typeof emailHelpers;
   http: typeof http;
   invitations: typeof invitations;
   invoiceGeneration: typeof invoiceGeneration;

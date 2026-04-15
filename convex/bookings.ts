@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 // Helper: check if two time ranges overlap (exclusive end)
 function timesOverlap(
@@ -287,7 +288,7 @@ export const create = mutation({
           : (room.halfDayRate ?? 0);
     }
 
-    return await ctx.db.insert("bookings", {
+    const bookingId = await ctx.db.insert("bookings", {
       orgId: args.orgId,
       roomId: args.roomId,
       userId: args.userId,
@@ -304,6 +305,13 @@ export const create = mutation({
       isBillable: true,
       notes: args.notes,
     });
+
+    // Schedule confirmation email
+    await ctx.scheduler.runAfter(0, internal.emailActions.sendBookingConfirmation, {
+      bookingId,
+    });
+
+    return bookingId;
   },
 });
 
@@ -444,6 +452,33 @@ export const cancel = mutation({
         },
         isRead: false,
         emailSent: false,
+      });
+    }
+
+    // Schedule cancellation email
+    // Get canceller's name
+    const cancellerUser = await ctx.db
+      .query("users")
+      .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", args.cancelledBy))
+      .unique();
+
+    await ctx.scheduler.runAfter(0, internal.emailActions.sendBookingCancellation, {
+      bookingId: args.id,
+      cancelledByName: cancellerUser?.fullName ?? "Unknown",
+      reason: args.reason,
+      isBillable,
+    });
+
+    // Schedule waitlist emails
+    const room2 = await ctx.db.get(booking.roomId);
+    const org2 = await ctx.db.get(booking.orgId);
+    for (const entry of waitlistEntries) {
+      await ctx.scheduler.runAfter(0, internal.emailActions.sendWaitlistNotification, {
+        userId: entry.userId,
+        roomName: room2?.name ?? "Unknown Room",
+        date: booking.date,
+        slot: slotLabel,
+        orgName: org2?.name ?? "Unknown",
       });
     }
 

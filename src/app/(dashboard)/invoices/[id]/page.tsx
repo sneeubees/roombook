@@ -129,27 +129,36 @@ export default function InvoiceDetailPage() {
         </CardContent>
       </Card>
 
-      {isOwner && invoice.status !== "paid" && invoice.status !== "void" && (
-        <div className="flex gap-3">
-          <Button
-            onClick={async () => {
-              await updateStatus({ id: invoiceId, status: "paid" });
-              toast.success("Invoice marked as paid");
-            }}
-          >
-            Mark as Paid
-          </Button>
-          <Button
-            variant="outline"
-            onClick={async () => {
-              await updateStatus({ id: invoiceId, status: "void" });
-              toast.success("Invoice voided");
-            }}
-          >
-            Void Invoice
-          </Button>
-        </div>
-      )}
+      <div className="flex gap-3 flex-wrap">
+        <Button
+          variant="outline"
+          onClick={() => window.open(`/api/invoices/${invoiceId}/pdf`, "_blank")}
+        >
+          Download PDF
+        </Button>
+
+        {isOwner && invoice.status !== "paid" && invoice.status !== "void" && (
+          <>
+            <Button
+              onClick={async () => {
+                await updateStatus({ id: invoiceId, status: "paid" });
+                toast.success("Invoice marked as paid");
+              }}
+            >
+              Mark as Paid
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                await updateStatus({ id: invoiceId, status: "void" });
+                toast.success("Invoice voided");
+              }}
+            >
+              Void Invoice
+            </Button>
+          </>
+        )}
+      </div>
     </div>
   );
 }
