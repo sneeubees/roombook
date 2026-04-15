@@ -147,7 +147,7 @@ export default function RoomsPage() {
                   <Badge variant="outline" className="text-xs">
                     {room.cancellationPolicy === "always_free"
                       ? "Free cancellation"
-                      : `Fee if <${room.cancellationDeadlineHours}h notice`}
+                      : `Late fee (under ${room.cancellationDeadlineHours}h notice)`}
                   </Badge>
                 </div>
                 {room.amenities.length > 0 && (

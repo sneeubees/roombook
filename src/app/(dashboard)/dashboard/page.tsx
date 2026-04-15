@@ -24,6 +24,11 @@ export default function DashboardPage() {
   const { orgId } = useOrgData();
   const { isOwner } = useUserRole();
 
+  const convexUser = useQuery(
+    api.users.getByClerkUserId,
+    user?.id ? { clerkUserId: user.id } : "skip"
+  );
+
   const today = format(new Date(), "yyyy-MM-dd");
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
   const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -72,7 +77,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">
-            Welcome back, {user?.firstName ?? "there"}
+            Welcome back, {convexUser?.fullName?.split(" ")[0] ?? user?.firstName ?? "there"}
           </h1>
           <p className="text-muted-foreground">
             {format(new Date(), "EEEE, d MMMM yyyy")}
