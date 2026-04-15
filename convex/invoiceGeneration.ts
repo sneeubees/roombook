@@ -52,7 +52,7 @@ export const generateInvoices = internalAction({
       let invoiceSeq = 1;
       for (const [userId, data] of byUser) {
         const subtotal = data.bookings.reduce(
-          (sum, b) => sum + b.rateApplied,
+          (sum: number, b: any) => sum + b.rateApplied,
           0
         );
         const taxAmount = Math.round(subtotal * org.vatRate);
@@ -72,7 +72,7 @@ export const generateInvoices = internalAction({
             taxRate: org.vatRate,
             taxAmount,
             total,
-            bookings: data.bookings.map((b) => {
+            bookings: data.bookings.map((b: any) => {
               let durationMinutes: number | undefined;
               if (b.slotType === "session" && b.startTime && b.endTime) {
                 const [sh, sm] = b.startTime.split(":").map(Number);

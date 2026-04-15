@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -24,7 +24,9 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileDown } from "lucide-react";
+import { FileDown, FilePlus } from "lucide-react";
+import { toast } from "sonner";
+import { useState } from "react";
 import { format } from "date-fns";
 import Link from "next/link";
 
@@ -61,6 +63,9 @@ export default function InvoicesPage() {
     orgId ? { orgId } : "skip"
   );
 
+  const generateInvoices = useAction(api.invoices.generateNow);
+  const [isGenerating, setIsGenerating] = useState(false);
+
   const filteredInvoices = isOwner
     ? invoices
     : invoices?.filter((i) => i.userId === user?.id);
@@ -69,6 +74,28 @@ export default function InvoicesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Invoices</h1>
+        {isOwner && orgId && (
+          <Button
+            variant="outline"
+            disabled={isGenerating}
+            onClick={async () => {
+              setIsGenerating(true);
+              try {
+                const count = await generateInvoices({ orgId });
+                toast.success(`Generated ${count} invoice(s)`);
+              } catch (error) {
+                toast.error(
+                  error instanceof Error ? error.message : "Failed to generate invoices"
+                );
+              } finally {
+                setIsGenerating(false);
+              }
+            }}
+          >
+            <FilePlus className="h-4 w-4 mr-2" />
+            {isGenerating ? "Generating..." : "Generate Invoices"}
+          </Button>
+        )}
       </div>
 
       <Card>

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { action, mutation, query } from "./_generated/server";
+import { internal } from "./_generated/api";
 
 export const listByOrg = query({
   args: { orgId: v.id("organizations") },
@@ -84,5 +85,102 @@ export const getPdfUrl = query({
   args: { storageId: v.id("_storage") },
   handler: async (ctx, args) => {
     return await ctx.storage.getUrl(args.storageId);
+  },
+});
+
+// Manual invoice generation trigger
+export const generateNow = action({
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args): Promise<number> => {
+    const org: any = await ctx.runQuery(internal.invoiceGenerationHelpers.getOrgById, {
+      orgId: args.orgId,
+    });
+    if (!org) throw new Error("Organization not found");
+
+    const today = new Date();
+
+    // Try previous month first
+    const periodEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+    const periodStart = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), 1);
+    let startStr = periodStart.toISOString().split("T")[0];
+    let endStr = periodEnd.toISOString().split("T")[0];
+
+    let allBookings: any[] = await ctx.runQuery(
+      internal.invoiceGenerationHelpers.getBillableBookings,
+      { orgId: args.orgId, startDate: startStr, endDate: endStr }
+    );
+
+    // If no previous month bookings, try current month
+    if (allBookings.length === 0) {
+      const cmStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      startStr = cmStart.toISOString().split("T")[0];
+      endStr = today.toISOString().split("T")[0];
+
+      allBookings = await ctx.runQuery(
+        internal.invoiceGenerationHelpers.getBillableBookings,
+        { orgId: args.orgId, startDate: startStr, endDate: endStr }
+      );
+
+      if (allBookings.length === 0) {
+        throw new Error("No billable bookings found for invoice generation");
+      }
+    }
+
+    // Group by user
+    const byUser = new Map<string, { userName: string; bookings: any[] }>();
+    for (const b of allBookings) {
+      const existing = byUser.get(b.userId) ?? { userName: b.userName, bookings: [] as any[] };
+      existing.bookings.push(b);
+      byUser.set(b.userId, existing);
+    }
+
+    let count = 0;
+    let seq = 1;
+    const pEnd = new Date(endStr);
+
+    for (const [userId, data] of byUser) {
+      const subtotal = data.bookings.reduce((s: number, b: any) => s + b.rateApplied, 0);
+      const taxAmount = Math.round(subtotal * org.vatRate);
+      const total = subtotal + taxAmount;
+      const invoiceNumber = `${org.invoicePrefix}-${pEnd.getFullYear()}-${String(pEnd.getMonth() + 1).padStart(2, "0")}-${String(seq).padStart(3, "0")}`;
+
+      await ctx.runMutation(
+        internal.invoiceGenerationHelpers.createInvoiceWithLineItems,
+        {
+          orgId: org._id,
+          userId,
+          invoiceNumber,
+          periodStart: startStr,
+          periodEnd: endStr,
+          subtotal,
+          taxRate: org.vatRate,
+          taxAmount,
+          total,
+          bookings: data.bookings.map((b: any) => {
+            let durationMinutes: number | undefined;
+            if (b.slotType === "session" && b.startTime && b.endTime) {
+              const [sh, sm] = b.startTime.split(":").map(Number);
+              const [eh, em] = b.endTime.split(":").map(Number);
+              durationMinutes = (eh * 60 + em) - (sh * 60 + sm);
+            }
+            return {
+              bookingId: b._id,
+              roomName: b.roomName ?? "Unknown Room",
+              date: b.date,
+              slotType: b.slotType,
+              startTime: b.startTime,
+              endTime: b.endTime,
+              durationMinutes,
+              rate: b.rateApplied,
+              amount: b.rateApplied,
+            };
+          }),
+        }
+      );
+      seq++;
+      count++;
+    }
+
+    return count;
   },
 });

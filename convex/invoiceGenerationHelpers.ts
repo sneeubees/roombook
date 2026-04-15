@@ -2,6 +2,13 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 
+export const getOrgById = internalQuery({
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.orgId);
+  },
+});
+
 export const getAllOrgs = internalQuery({
   args: {},
   handler: async (ctx) => {
