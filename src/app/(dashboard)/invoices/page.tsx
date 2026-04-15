@@ -6,6 +6,7 @@ import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useSubscriptionTier } from "@/hooks/use-subscription-tier";
 import { useUser } from "@clerk/nextjs";
+import { useMemo } from "react";
 import { Lock } from "lucide-react";
 import {
   Card,
@@ -65,6 +66,22 @@ export default function InvoicesPage() {
 
   const generateInvoices = useAction(api.invoices.generateNow);
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const bookerIds = useMemo(() => {
+    const ids = new Set<string>();
+    invoices?.forEach((i) => ids.add(i.userId));
+    return Array.from(ids);
+  }, [invoices]);
+
+  const convexUsers = useQuery(
+    api.users.listByClerkUserIds,
+    bookerIds.length > 0 ? { clerkUserIds: bookerIds } : "skip"
+  );
+
+  function resolveUserName(clerkUserId: string): string {
+    const cu = convexUsers?.find((u) => u.clerkUserId === clerkUserId);
+    return cu?.fullName || clerkUserId;
+  }
 
   const filteredInvoices = isOwner
     ? invoices
@@ -146,7 +163,7 @@ export default function InvoicesPage() {
                           "d MMM yyyy"
                         )}
                       </TableCell>
-                      {isOwner && <TableCell>{invoice.userId}</TableCell>}
+                      {isOwner && <TableCell>{resolveUserName(invoice.userId)}</TableCell>}
                       <TableCell>
                         R{(invoice.subtotal / 100).toFixed(2)}
                       </TableCell>

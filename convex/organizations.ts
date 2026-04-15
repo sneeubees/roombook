@@ -85,6 +85,24 @@ export const update = mutation({
   },
 });
 
+export const generateLogoUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const saveLogoAndGetUrl = mutation({
+  args: { orgId: v.id("organizations"), storageId: v.id("_storage") },
+  handler: async (ctx, args) => {
+    const url = await ctx.storage.getUrl(args.storageId);
+    if (url) {
+      await ctx.db.patch(args.orgId, { logoUrl: url });
+    }
+    return url;
+  },
+});
+
 export const listAll = query({
   args: {},
   handler: async (ctx) => {

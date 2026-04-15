@@ -31,6 +31,8 @@ import { toast } from "sonner";
 export default function SettingsPage() {
   const { convexOrg } = useOrgData();
   const updateOrg = useMutation(api.organizations.update);
+  const generateLogoUploadUrl = useMutation(api.organizations.generateLogoUploadUrl);
+  const saveLogoAndGetUrl = useMutation(api.organizations.saveLogoAndGetUrl);
 
   const [companyName, setCompanyName] = useState("");
   const [companyLogoUrl, setCompanyLogoUrl] = useState("");
@@ -147,25 +149,70 @@ export default function SettingsPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="companyLogo">Logo URL</Label>
-              <div className="flex gap-3 items-start">
-                {companyLogoUrl && (
+              <Label>Logo</Label>
+              <div className="flex gap-4 items-center">
+                {companyLogoUrl ? (
                   <img
                     src={companyLogoUrl}
-                    alt="Logo preview"
-                    className="h-12 w-12 rounded border object-contain bg-white"
+                    alt="Logo"
+                    className="h-16 w-16 rounded border object-contain bg-white"
                   />
+                ) : (
+                  <div className="h-16 w-16 rounded border border-dashed flex items-center justify-center text-muted-foreground text-xs">
+                    No logo
+                  </div>
                 )}
-                <div className="flex-1">
-                  <Input
-                    id="companyLogo"
-                    value={companyLogoUrl}
-                    onChange={(e) => setCompanyLogoUrl(e.target.value)}
-                    placeholder="https://example.com/logo.png"
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    id="logo-upload"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        const uploadUrl = await generateLogoUploadUrl();
+                        const result = await fetch(uploadUrl, {
+                          method: "POST",
+                          headers: { "Content-Type": file.type },
+                          body: file,
+                        });
+                        const { storageId } = await result.json();
+                        if (convexOrg?._id) {
+                          const url = await saveLogoAndGetUrl({
+                            orgId: convexOrg._id,
+                            storageId,
+                          });
+                          if (url) setCompanyLogoUrl(url);
+                        }
+                        toast.success("Logo uploaded!");
+                      } catch {
+                        toast.error("Failed to upload logo");
+                      }
+                    }}
                   />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Paste a URL to your logo image. It will appear in the
-                    sidebar and on invoices.
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => document.getElementById("logo-upload")?.click()}
+                  >
+                    Upload Logo
+                  </Button>
+                  {companyLogoUrl && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-destructive"
+                      onClick={() => setCompanyLogoUrl("")}
+                    >
+                      Remove
+                    </Button>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    PNG, JPG or SVG. Appears in sidebar and on invoices.
                   </p>
                 </div>
               </div>
