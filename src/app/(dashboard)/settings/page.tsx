@@ -1,0 +1,503 @@
+"use client";
+
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../../../convex/_generated/api";
+import { useOrgData } from "@/hooks/use-org-data";
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { TIER_FEATURES, type SubscriptionTier } from "@/lib/tiers";
+import { CALENDAR_THEMES, type CalendarThemeId } from "@/lib/calendar-themes";
+import { toast } from "sonner";
+
+export default function SettingsPage() {
+  const { convexOrg } = useOrgData();
+  const updateOrg = useMutation(api.organizations.update);
+
+  const [companyName, setCompanyName] = useState("");
+  const [companyLogoUrl, setCompanyLogoUrl] = useState("");
+  const [invoiceDayOfMonth, setInvoiceDayOfMonth] = useState("1");
+  const [invoicePrefix, setInvoicePrefix] = useState("INV");
+  const [vatNumber, setVatNumber] = useState("");
+  const [vatRate, setVatRate] = useState("15");
+  const [bankName, setBankName] = useState("");
+  const [accountNumber, setAccountNumber] = useState("");
+  const [branchCode, setBranchCode] = useState("");
+  const [accountType, setAccountType] = useState("");
+  const [calendarTheme, setCalendarTheme] = useState<CalendarThemeId>("ocean");
+  const [darkMode, setDarkMode] = useState(false);
+  const [staffLabel, setStaffLabel] = useState("Booker");
+  const [customStaffLabel, setCustomStaffLabel] = useState("");
+  const [showBookerNames, setShowBookerNames] = useState(false);
+  const [showBookerContact, setShowBookerContact] = useState(false);
+  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>("basic");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (convexOrg) {
+      setCompanyName(convexOrg.name ?? "");
+      setCompanyLogoUrl(convexOrg.logoUrl ?? "");
+      setCalendarTheme((convexOrg.calendarTheme as CalendarThemeId) ?? "ocean");
+      setDarkMode(convexOrg.darkMode ?? false);
+      setInvoiceDayOfMonth(String(convexOrg.invoiceDayOfMonth));
+      setInvoicePrefix(convexOrg.invoicePrefix);
+      setVatNumber(convexOrg.vatNumber ?? "");
+      setVatRate(String((convexOrg.vatRate ?? 0.15) * 100));
+      setBankName(convexOrg.bankingDetails?.bankName ?? "");
+      setAccountNumber(convexOrg.bankingDetails?.accountNumber ?? "");
+      setBranchCode(convexOrg.bankingDetails?.branchCode ?? "");
+      setAccountType(convexOrg.bankingDetails?.accountType ?? "");
+      const label = convexOrg.staffLabel ?? "Booker";
+      const presets = ["Booker", "Therapist", "Physician", "Doctor", "Stylist"];
+      if (presets.includes(label)) {
+        setStaffLabel(label);
+        setCustomStaffLabel("");
+      } else {
+        setStaffLabel("Other");
+        setCustomStaffLabel(label);
+      }
+      setShowBookerNames(convexOrg.showBookerNames ?? false);
+      setShowBookerContact(convexOrg.showBookerContact ?? false);
+      setSubscriptionTier((convexOrg.subscriptionTier as SubscriptionTier) ?? "basic");
+    }
+  }, [convexOrg]);
+
+  if (!convexOrg) {
+    return <div className="text-muted-foreground">Loading settings...</div>;
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      await updateOrg({
+        id: convexOrg!._id,
+        name: companyName.trim() || undefined,
+        logoUrl: companyLogoUrl.trim() || undefined,
+        calendarTheme,
+        darkMode,
+        staffLabel: staffLabel === "Other" ? customStaffLabel || "Booker" : staffLabel,
+        showBookerNames,
+        showBookerContact: showBookerNames ? showBookerContact : false,
+        subscriptionTier,
+        invoiceDayOfMonth: parseInt(invoiceDayOfMonth),
+        invoicePrefix,
+        vatNumber: vatNumber || undefined,
+        vatRate: parseFloat(vatRate) / 100,
+        bankingDetails:
+          bankName && accountNumber
+            ? {
+                bankName,
+                accountNumber,
+                branchCode,
+                accountType,
+              }
+            : undefined,
+      });
+      toast.success("Settings saved!");
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to save settings"
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="max-w-2xl space-y-6">
+      <h1 className="text-2xl font-bold">Settings</h1>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Company Details */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Company Details</CardTitle>
+            <CardDescription>
+              Your company name and logo appear in the sidebar, header, and on
+              invoices.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="companyName">Company / Organization Name</Label>
+              <Input
+                id="companyName"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="e.g., PhysioCare Practice"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="companyLogo">Logo URL</Label>
+              <div className="flex gap-3 items-start">
+                {companyLogoUrl && (
+                  <img
+                    src={companyLogoUrl}
+                    alt="Logo preview"
+                    className="h-12 w-12 rounded border object-contain bg-white"
+                  />
+                )}
+                <div className="flex-1">
+                  <Input
+                    id="companyLogo"
+                    value={companyLogoUrl}
+                    onChange={(e) => setCompanyLogoUrl(e.target.value)}
+                    placeholder="https://example.com/logo.png"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Paste a URL to your logo image. It will appear in the
+                    sidebar and on invoices.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Appearance */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Appearance</CardTitle>
+            <CardDescription>
+              Customize the look of your calendar and app.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Dark/Light Mode */}
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Dark Mode</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Switch between light and dark interface.
+                </p>
+              </div>
+              <Switch
+                checked={darkMode}
+                onCheckedChange={setDarkMode}
+              />
+            </div>
+
+            <Separator />
+
+            {/* Calendar Theme */}
+            <div className="space-y-3">
+              <Label>Calendar Color Theme</Label>
+              <p className="text-xs text-muted-foreground">
+                Choose how bookings appear on the calendar.
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                {(Object.values(CALENDAR_THEMES)).map((theme) => (
+                  <div
+                    key={theme.id}
+                    className={`rounded-lg border-2 p-3 cursor-pointer transition-colors ${
+                      calendarTheme === theme.id
+                        ? "border-primary bg-primary/5"
+                        : "border-transparent hover:border-muted-foreground/20"
+                    }`}
+                    onClick={() => setCalendarTheme(theme.id)}
+                  >
+                    <div className="font-medium text-sm mb-1">{theme.label}</div>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      {theme.description}
+                    </p>
+                    <div className="flex gap-1">
+                      {theme.swatches.map((color, i) => (
+                        <div
+                          key={i}
+                          className="h-5 flex-1 rounded-sm border border-black/5"
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                    <div className="flex gap-1 mt-1.5 text-[9px] text-muted-foreground">
+                      <span className="flex-1 text-center">Free</span>
+                      <span className="flex-1 text-center">Mine</span>
+                      <span className="flex-1 text-center">Other</span>
+                      <span className="flex-1 text-center">Block</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Subscription Tier */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Subscription Plan</CardTitle>
+            <CardDescription>
+              Your current plan determines which features are available.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <Select
+              value={subscriptionTier}
+              onValueChange={(v) => v && setSubscriptionTier(v as SubscriptionTier)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(Object.entries(TIER_FEATURES) as [SubscriptionTier, typeof TIER_FEATURES.basic][]).map(
+                  ([key, tier]) => (
+                    <SelectItem key={key} value={key}>
+                      {tier.label} — {tier.description}
+                    </SelectItem>
+                  )
+                )}
+              </SelectContent>
+            </Select>
+            <div className="grid grid-cols-3 gap-3">
+              {(Object.entries(TIER_FEATURES) as [SubscriptionTier, typeof TIER_FEATURES.basic][]).map(
+                ([key, tier]) => (
+                  <div
+                    key={key}
+                    className={`rounded-lg border p-3 text-sm ${
+                      subscriptionTier === key
+                        ? "border-primary bg-primary/5"
+                        : ""
+                    }`}
+                  >
+                    <div className="font-medium mb-1 flex items-center gap-2">
+                      {tier.label}
+                      {subscriptionTier === key && (
+                        <Badge variant="default" className="text-[10px]">
+                          Current
+                        </Badge>
+                      )}
+                    </div>
+                    <ul className="text-xs text-muted-foreground space-y-0.5">
+                      {tier.features.map((f) => (
+                        <li key={f}>+ {f}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Booking Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Booking Settings</CardTitle>
+            <CardDescription>
+              Configure how bookings appear to your staff.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Label>Staff Title</Label>
+              <p className="text-xs text-muted-foreground">
+                What do you call your staff members? This label is used
+                throughout the app.
+              </p>
+              <Select
+                value={staffLabel}
+                onValueChange={(v) => v && setStaffLabel(v)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Booker">Booker</SelectItem>
+                  <SelectItem value="Therapist">Therapist</SelectItem>
+                  <SelectItem value="Physician">Physician</SelectItem>
+                  <SelectItem value="Doctor">Doctor</SelectItem>
+                  <SelectItem value="Stylist">Stylist</SelectItem>
+                  <SelectItem value="Other">Other (custom)</SelectItem>
+                </SelectContent>
+              </Select>
+              {staffLabel === "Other" && (
+                <Input
+                  placeholder="e.g., Consultant, Coach, Trainer"
+                  value={customStaffLabel}
+                  onChange={(e) => setCustomStaffLabel(e.target.value)}
+                />
+              )}
+            </div>
+
+            <Separator />
+
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Show another {staffLabel === "Other" ? (customStaffLabel || "booker").toLowerCase() : staffLabel.toLowerCase()}&apos;s name</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  When enabled, a {staffLabel === "Other" ? (customStaffLabel || "booker").toLowerCase() : staffLabel.toLowerCase()} can
+                  see another {staffLabel === "Other" ? (customStaffLabel || "booker").toLowerCase() : staffLabel.toLowerCase()}&apos;s
+                  name on booked slots. Owners always see names regardless.
+                </p>
+              </div>
+              <Switch
+                checked={showBookerNames}
+                onCheckedChange={(checked) => {
+                  setShowBookerNames(checked);
+                  if (!checked) setShowBookerContact(false);
+                }}
+              />
+            </div>
+
+            {showBookerNames && (
+              <div className="flex items-center justify-between pl-4 border-l-2 border-muted">
+                <div>
+                  <Label>Also show contact number</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Display the contact number alongside the name on booked slots.
+                  </p>
+                </div>
+                <Switch
+                  checked={showBookerContact}
+                  onCheckedChange={setShowBookerContact}
+                />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Invoice Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Invoice Settings</CardTitle>
+            <CardDescription>
+              Configure when and how invoices are generated.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="invoiceDay">
+                  Invoice Day of Month (1-28)
+                </Label>
+                <Input
+                  id="invoiceDay"
+                  type="number"
+                  min="1"
+                  max="28"
+                  value={invoiceDayOfMonth}
+                  onChange={(e) => setInvoiceDayOfMonth(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="invoicePrefix">Invoice Prefix</Label>
+                <Input
+                  id="invoicePrefix"
+                  value={invoicePrefix}
+                  onChange={(e) => setInvoicePrefix(e.target.value)}
+                  placeholder="INV"
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Tax Settings */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Tax Settings</CardTitle>
+            <CardDescription>
+              VAT registration and rate configuration.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="vatNumber">VAT Number</Label>
+                <Input
+                  id="vatNumber"
+                  value={vatNumber}
+                  onChange={(e) => setVatNumber(e.target.value)}
+                  placeholder="e.g., 4123456789"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="vatRate">VAT Rate (%)</Label>
+                <Input
+                  id="vatRate"
+                  type="number"
+                  step="0.1"
+                  value={vatRate}
+                  onChange={(e) => setVatRate(e.target.value)}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Banking Details */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Banking Details</CardTitle>
+            <CardDescription>
+              These appear on your invoices for payments.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="bankName">Bank Name</Label>
+                <Input
+                  id="bankName"
+                  value={bankName}
+                  onChange={(e) => setBankName(e.target.value)}
+                  placeholder="e.g., FNB"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="accountType">Account Type</Label>
+                <Input
+                  id="accountType"
+                  value={accountType}
+                  onChange={(e) => setAccountType(e.target.value)}
+                  placeholder="e.g., Cheque"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="accountNumber">Account Number</Label>
+                <Input
+                  id="accountNumber"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="branchCode">Branch Code</Label>
+                <Input
+                  id="branchCode"
+                  value={branchCode}
+                  onChange={(e) => setBranchCode(e.target.value)}
+                />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? "Saving..." : "Save Settings"}
+        </Button>
+      </form>
+    </div>
+  );
+}
