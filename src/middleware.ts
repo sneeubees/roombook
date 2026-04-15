@@ -10,32 +10,29 @@ const isPublicRoute = createRouteMatcher([
   "/api/domains(.*)",
 ]);
 
-const MAIN_DOMAINS = ["roombook.co.za", "www.roombook.co.za", "localhost"];
+const MAIN_DOMAINS = ["roombook.co.za", "www.roombook.co.za"];
 
 export default clerkMiddleware(async (auth, request) => {
-  const hostname = request.headers.get("host")?.split(":")[0] ?? "";
-  const isCustomDomain = !MAIN_DOMAINS.some(
-    (d) => hostname === d || hostname.endsWith("localhost")
-  );
-
-  // Set custom domain header for downstream components
-  const response = NextResponse.next();
-  if (isCustomDomain && hostname) {
-    response.headers.set("x-custom-domain", hostname);
-    // Also set a cookie so client-side can read it
-    response.cookies.set("custom-domain", hostname, {
-      path: "/",
-      httpOnly: false,
-      secure: true,
-      sameSite: "lax",
-    });
-  }
-
   if (!isPublicRoute(request)) {
     await auth.protect();
   }
 
-  return response;
+  // Detect custom domain and set cookie for client-side use
+  const hostname = request.headers.get("host")?.split(":")[0] ?? "";
+  const isCustomDomain =
+    hostname !== "" &&
+    !hostname.includes("localhost") &&
+    !MAIN_DOMAINS.includes(hostname);
+
+  if (isCustomDomain) {
+    const response = NextResponse.next();
+    response.cookies.set("custom-domain", hostname, {
+      path: "/",
+      httpOnly: false,
+      sameSite: "lax",
+    });
+    return response;
+  }
 });
 
 export const config = {
