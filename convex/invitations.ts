@@ -27,19 +27,37 @@ export const create = mutation({
     orgId: v.id("organizations"),
     clerkOrgId: v.string(),
     invitedBy: v.string(),
+    invitedByName: v.optional(v.string()),
     email: v.string(),
-    role: v.union(v.literal("therapist"), v.literal("owner")),
+    role: v.union(v.literal("therapist"), v.literal("owner"), v.literal("manager")),
     token: v.string(),
   },
   handler: async (ctx, args) => {
     // 7 day expiry
     const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
 
-    return await ctx.db.insert("invitations", {
-      ...args,
+    const { invitedByName, ...insertArgs } = args;
+
+    const id = await ctx.db.insert("invitations", {
+      ...insertArgs,
       status: "pending",
       expiresAt,
     });
+
+    // Activity log
+    await ctx.db.insert("activityLogs", {
+      orgId: args.orgId,
+      actorId: args.invitedBy,
+      actorName: invitedByName ?? "Unknown",
+      actorRole: "owner_or_manager",
+      action: "member_invited",
+      targetType: "invitation",
+      targetId: id,
+      targetName: args.email,
+      details: { role: args.role },
+    });
+
+    return id;
   },
 });
 

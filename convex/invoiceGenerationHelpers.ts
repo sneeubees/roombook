@@ -75,6 +75,8 @@ export const createInvoiceWithLineItems = internalMutation({
         startTime: v.optional(v.string()),
         endTime: v.optional(v.string()),
         durationMinutes: v.optional(v.number()),
+        description: v.optional(v.string()),
+        bookedByName: v.optional(v.string()),
         rate: v.number(),
         amount: v.number(),
       })
@@ -118,6 +120,8 @@ export const createInvoiceWithLineItems = internalMutation({
         startTime: item.startTime,
         endTime: item.endTime,
         durationMinutes: item.durationMinutes,
+        description: item.description,
+        bookedByName: item.bookedByName,
         rate: item.rate,
         amount: item.amount,
       });

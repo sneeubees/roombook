@@ -425,6 +425,8 @@ export default function BookingsPage() {
                 try {
                   await editBooking({
                     id: editTarget,
+                    actorId: user?.id,
+                    actorName: user?.fullName ?? undefined,
                     description: editDescription || undefined,
                     notes: editNotes || undefined,
                     startTime: editStartTime || undefined,

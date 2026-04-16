@@ -3,6 +3,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
+import { useUserRole } from "@/hooks/use-user-role";
 import { useState, useEffect } from "react";
 import {
   Card,
@@ -30,6 +31,7 @@ import { toast } from "sonner";
 
 export default function SettingsPage() {
   const { convexOrg } = useOrgData();
+  const { canAccessSettings } = useUserRole();
   const updateOrg = useMutation(api.organizations.update);
   const generateLogoUploadUrl = useMutation(api.organizations.generateLogoUploadUrl);
   const saveLogoAndGetUrl = useMutation(api.organizations.saveLogoAndGetUrl);
@@ -88,6 +90,18 @@ export default function SettingsPage() {
 
   if (!convexOrg) {
     return <div className="text-muted-foreground">Loading settings...</div>;
+  }
+
+  if (!canAccessSettings) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <h2 className="text-xl font-semibold mb-2">Access Denied</h2>
+        <p className="text-muted-foreground max-w-md">
+          Only owners can access Settings. Please contact your organization
+          owner if you need changes made.
+        </p>
+      </div>
+    );
   }
 
   async function handleSubmit(e: React.FormEvent) {

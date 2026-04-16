@@ -1153,6 +1153,8 @@ export default function CalendarPage() {
                       try {
                         await editBookingDetails({
                           id: selectedBookingId,
+                          actorId: user?.id,
+                          actorName: user?.fullName ?? undefined,
                           description: editDescription || undefined,
                           notes: editNotes || undefined,
                           startTime: isSession ? updateStartTime : undefined,

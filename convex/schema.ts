@@ -217,6 +217,8 @@ export default defineSchema({
     startTime: v.optional(v.string()),
     endTime: v.optional(v.string()),
     durationMinutes: v.optional(v.number()),
+    description: v.optional(v.string()),
+    bookedByName: v.optional(v.string()),
     rate: v.number(), // cents
     amount: v.number(), // cents
   }).index("by_invoice", ["invoiceId"]),
@@ -227,7 +229,7 @@ export default defineSchema({
     clerkOrgId: v.string(),
     invitedBy: v.string(), // Clerk user ID
     email: v.string(),
-    role: v.union(v.literal("therapist"), v.literal("owner")),
+    role: v.union(v.literal("therapist"), v.literal("owner"), v.literal("manager")),
     token: v.string(),
     status: v.union(
       v.literal("pending"),
@@ -268,4 +270,19 @@ export default defineSchema({
     isVerified: v.boolean(),
     verifiedAt: v.optional(v.number()),
   }).index("by_domain", ["domain"]),
+
+  // Activity log — audit trail of actions in the app
+  activityLogs: defineTable({
+    orgId: v.id("organizations"),
+    actorId: v.string(), // Clerk user ID of the actor
+    actorName: v.string(), // denormalized actor name
+    actorRole: v.string(), // "owner" | "manager" | "booker" | "super_admin"
+    action: v.string(), // e.g., "booking_created", "booking_cancelled"
+    targetType: v.optional(v.string()), // "booking", "user", "room", "invoice", "organization"
+    targetId: v.optional(v.string()),
+    targetName: v.optional(v.string()),
+    details: v.optional(v.any()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_actor", ["actorId"]),
 });

@@ -311,6 +311,29 @@ export const create = mutation({
       bookingId,
     });
 
+    // Activity log
+    const actorId = args.bookedBy ?? args.userId;
+    const actorName = args.bookedByName ?? args.userName;
+    const onBehalf = args.bookedBy && args.bookedBy !== args.userId;
+    await ctx.db.insert("activityLogs", {
+      orgId: args.orgId,
+      actorId,
+      actorName,
+      actorRole: onBehalf ? "owner_or_manager" : "booker",
+      action: "booking_created",
+      targetType: "booking",
+      targetId: bookingId,
+      targetName: `${room.name} on ${args.date}`,
+      details: {
+        forUserName: args.userName,
+        onBehalf,
+        description: args.description,
+        slotType: args.slotType,
+        startTime,
+        endTime,
+      },
+    });
+
     return bookingId;
   },
 });
@@ -482,6 +505,26 @@ export const cancel = mutation({
       });
     }
 
+    // Activity log
+    const cancelledByThemselves = args.cancelledBy === booking.userId;
+    await ctx.db.insert("activityLogs", {
+      orgId: booking.orgId,
+      actorId: args.cancelledBy,
+      actorName: cancellerUser?.fullName ?? "Unknown",
+      actorRole: cancelledByThemselves ? "booker" : "owner_or_manager",
+      action: "booking_cancelled",
+      targetType: "booking",
+      targetId: args.id,
+      targetName: `${room2?.name ?? "Room"} on ${booking.date}`,
+      details: {
+        forUserName: booking.userName,
+        reason: args.reason,
+        isBillable,
+        cancelledByThemselves,
+        waitlistNotified: waitlistEntries.length,
+      },
+    });
+
     return { isBillable, waitlistNotified: waitlistEntries.length };
   },
 });
@@ -612,6 +655,8 @@ export const update = mutation({
 export const editDetails = mutation({
   args: {
     id: v.id("bookings"),
+    actorId: v.optional(v.string()),
+    actorName: v.optional(v.string()),
     description: v.optional(v.string()),
     notes: v.optional(v.string()),
     startTime: v.optional(v.string()),
@@ -693,6 +738,25 @@ export const editDetails = mutation({
     }
 
     await ctx.db.patch(args.id, updates);
+
+    // Activity log
+    if (args.actorId) {
+      await ctx.db.insert("activityLogs", {
+        orgId: booking.orgId,
+        actorId: args.actorId,
+        actorName: args.actorName ?? "Unknown",
+        actorRole: args.actorId === booking.userId ? "booker" : "owner_or_manager",
+        action: "booking_edited",
+        targetType: "booking",
+        targetId: args.id,
+        targetName: `${room?.name ?? "Room"} on ${booking.date}`,
+        details: {
+          forUserName: booking.userName,
+          changedFields: Object.keys(updates),
+        },
+      });
+    }
+
     return true;
   },
 });

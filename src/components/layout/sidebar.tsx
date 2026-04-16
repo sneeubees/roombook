@@ -55,7 +55,7 @@ const bookerLinks: NavLink[] = [
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
-  const { isOwner, isSuperAdmin } = useUserRole();
+  const { isOwner, isManager, isSuperAdmin, canAccessSettings, canAccessReports } = useUserRole();
   const { isCustomDomain } = useCustomDomain();
   const { can } = useSubscriptionTier();
   const { convexOrg } = useOrgData();
@@ -67,10 +67,13 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   );
 
   const invoicesOn = convexOrg?.invoicesEnabled !== false;
-  const allLinks = isOwner ? ownerLinks : bookerLinks;
+  // Manager gets owner links minus Settings + Reports
+  const allLinks = (isOwner || isManager) ? ownerLinks : bookerLinks;
   const links = allLinks.filter((link) => {
     if (link.requiredFeature && !can(link.requiredFeature)) return false;
     if (link.href === "/invoices" && !invoicesOn) return false;
+    if (link.href === "/settings" && !canAccessSettings) return false;
+    if (link.href === "/reports" && !canAccessReports) return false;
     return true;
   });
 

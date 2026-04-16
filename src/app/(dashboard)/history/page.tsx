@@ -29,8 +29,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { History } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { format, parseISO, formatDistanceToNow } from "date-fns";
 
 export default function BookingHistoryPage() {
   const { user } = useUser();
@@ -93,12 +94,25 @@ export default function BookingHistoryPage() {
     );
   }, [userBookings]);
 
+  const activityLogs = useQuery(
+    api.activityLogs.listByOrg,
+    orgId && isOwner ? { orgId, limit: 200 } : "skip"
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <History className="h-6 w-6 text-muted-foreground" />
-        <h1 className="text-2xl font-bold">Booking History</h1>
+        <h1 className="text-2xl font-bold">History</h1>
       </div>
+
+      <Tabs defaultValue="bookings">
+        <TabsList>
+          <TabsTrigger value="bookings">Booking History</TabsTrigger>
+          {isOwner && <TabsTrigger value="activity">Activity Log</TabsTrigger>}
+        </TabsList>
+
+        <TabsContent value="bookings" className="space-y-6">
 
       {/* Owner: user selector */}
       {isOwner && memberships?.data && (
@@ -227,6 +241,93 @@ export default function BookingHistoryPage() {
           </CardContent>
         </Card>
       )}
+        </TabsContent>
+
+        {isOwner && (
+          <TabsContent value="activity" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Activity Log</CardTitle>
+                <CardDescription>
+                  Audit trail of actions taken in your organization.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {activityLogs && activityLogs.length > 0 ? (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>When</TableHead>
+                        <TableHead>Who</TableHead>
+                        <TableHead>Action</TableHead>
+                        <TableHead>Target</TableHead>
+                        <TableHead>Details</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {activityLogs.map((log) => (
+                        <TableRow key={log._id}>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {formatDistanceToNow(new Date(log._creationTime), {
+                              addSuffix: true,
+                            })}
+                            <div className="text-[10px] opacity-60">
+                              {format(new Date(log._creationTime), "d MMM HH:mm")}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium text-sm">
+                              {log.actorName}
+                            </div>
+                            <div className="text-[10px] text-muted-foreground">
+                              {log.actorRole}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs">
+                              {log.action.replace(/_/g, " ")}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {log.targetName ?? "—"}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-xs truncate">
+                            {log.details ? (
+                              <span>
+                                {Object.entries(
+                                  log.details as Record<string, unknown>
+                                )
+                                  .filter(
+                                    ([, v]) =>
+                                      v !== undefined &&
+                                      v !== null &&
+                                      v !== ""
+                                  )
+                                  .slice(0, 3)
+                                  .map(
+                                    ([k, v]) =>
+                                      `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`
+                                  )
+                                  .join(" • ")}
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    No activity recorded yet.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 }

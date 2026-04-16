@@ -36,6 +36,7 @@ export default function AdminPage() {
   const users = useQuery(api.users.listAll);
   const approveOrg = useMutation(api.organizations.approve);
   const suspendOrg = useMutation(api.organizations.suspend);
+  const setSuperAdmin = useMutation(api.users.setSuperAdmin);
 
   if (!isSuperAdmin) {
     return (
@@ -210,6 +211,7 @@ export default function AdminPage() {
                 <TableHead>Phone</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead>Profile</TableHead>
+                <TableHead></TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -235,6 +237,26 @@ export default function AdminPage() {
                     >
                       {u.isProfileComplete ? "Complete" : "Incomplete"}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Button
+                      size="sm"
+                      variant={u.isSuperAdmin ? "outline" : "ghost"}
+                      onClick={async () => {
+                        const newVal = !u.isSuperAdmin;
+                        await setSuperAdmin({
+                          clerkUserId: u.clerkUserId,
+                          isSuperAdmin: newVal,
+                        });
+                        toast.success(
+                          newVal
+                            ? `${u.fullName || u.email} is now a Super Admin`
+                            : `${u.fullName || u.email} is no longer a Super Admin`
+                        );
+                      }}
+                    >
+                      {u.isSuperAdmin ? "Revoke Admin" : "Make Super Admin"}
+                    </Button>
                   </TableCell>
                 </TableRow>
               ))}

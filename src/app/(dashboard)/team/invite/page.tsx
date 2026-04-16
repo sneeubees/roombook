@@ -3,6 +3,7 @@
 import { useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
+import { useUserRole } from "@/hooks/use-user-role";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -34,11 +35,12 @@ function generateToken(): string {
 export default function InvitePage() {
   const { orgId, clerkOrg } = useOrgData();
   const { user } = useUser();
+  const { isOwner } = useUserRole();
   const router = useRouter();
   const createInvitation = useMutation(api.invitations.create);
 
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"therapist" | "owner">("therapist");
+  const [role, setRole] = useState<"therapist" | "owner" | "manager">("therapist");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -52,6 +54,7 @@ export default function InvitePage() {
         orgId,
         clerkOrgId: clerkOrg.id,
         invitedBy: user.id,
+        invitedByName: user.fullName ?? undefined,
         email,
         role,
         token,
@@ -102,19 +105,26 @@ export default function InvitePage() {
               <Select
                 value={role}
                 onValueChange={(v) =>
-                  setRole(v as "therapist" | "owner")
+                  v && setRole(v as "therapist" | "owner" | "manager")
                 }
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {role === "therapist" ? "Booker" : role === "manager" ? "Manager" : "Owner"}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="therapist">
-                    Booker - Can book rooms and view own invoices
+                    Booker — book rooms and view own invoices
                   </SelectItem>
-                  <SelectItem value="owner">
-                    Owner - Full access to manage rooms, team, and reports
+                  <SelectItem value="manager">
+                    Manager — manage bookings, rooms, team, invoices (no Settings/Reports)
                   </SelectItem>
+                  {isOwner && (
+                    <SelectItem value="owner">
+                      Owner — full access including Settings and Reports
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>

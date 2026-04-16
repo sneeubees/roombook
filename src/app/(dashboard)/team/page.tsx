@@ -167,6 +167,8 @@ export default function TeamPage() {
                 const isMe =
                   membership.publicUserData?.userId === user?.id;
                 const isOwnerRole = membership.role === "org:admin";
+                const isManagerRole = membership.role === "org:manager";
+                const roleLabel = isOwnerRole ? "Owner" : isManagerRole ? "Manager" : "Booker";
 
                 return (
                   <TableRow key={membership.id}>
@@ -181,9 +183,9 @@ export default function TeamPage() {
                     <TableCell>{email}</TableCell>
                     <TableCell>
                       <Badge
-                        variant={isOwnerRole ? "default" : "secondary"}
+                        variant={isOwnerRole ? "default" : isManagerRole ? "outline" : "secondary"}
                       >
-                        {isOwnerRole ? "Owner" : "Booker"}
+                        {roleLabel}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">

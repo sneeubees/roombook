@@ -92,6 +92,8 @@ export const generateInvoices = internalAction({
                 startTime: b.startTime,
                 endTime: b.endTime,
                 durationMinutes,
+                description: b.description,
+                bookedByName: b.bookedByName,
                 rate: b.rateApplied,
                 amount: b.rateApplied,
               };

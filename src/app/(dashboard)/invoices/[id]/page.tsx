@@ -79,6 +79,8 @@ export default function InvoiceDetailPage() {
                   <TableHead>Date</TableHead>
                   <TableHead>Room</TableHead>
                   <TableHead>Slot</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Booked By</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                 </TableRow>
               </TableHeader>
@@ -95,6 +97,12 @@ export default function InvoiceDetailPage() {
                         : item.slotType === "full_day"
                           ? "Full Day"
                           : item.slotType.toUpperCase()}
+                    </TableCell>
+                    <TableCell className="max-w-[150px] truncate text-muted-foreground">
+                      {item.description ?? "—"}
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {item.bookedByName ?? "—"}
                     </TableCell>
                     <TableCell className="text-right">
                       R{(item.amount / 100).toFixed(2)}
