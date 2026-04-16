@@ -49,6 +49,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { getThemeColors } from "@/lib/calendar-themes";
+import { getRoomColor } from "@/lib/room-colors";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
@@ -89,6 +90,14 @@ export default function CalendarPage() {
   const { isOwner } = useUserRole();
   const showNames = isOwner || (convexOrg?.showBookerNames ?? false);
   const tc = getThemeColors(convexOrg?.calendarTheme);
+
+  // Get room color by room ID — uses sortOrder/index for stable coloring
+  function getColorForRoom(roomId: string) {
+    if (!rooms) return getRoomColor(0);
+    const sorted = [...rooms].sort((a, b) => a.sortOrder - b.sortOrder);
+    const idx = sorted.findIndex((r) => r._id === roomId);
+    return getRoomColor(idx >= 0 ? idx : 0);
+  }
   const { memberships } = useOrganization({
     memberships: isOwner ? { pageSize: 100 } : undefined,
   });
@@ -432,11 +441,13 @@ export default function CalendarPage() {
     const endH = parseInt((room.availabilityEnd ?? "17:00").split(":")[0]);
     const totalHours = endH - startH;
 
+    const rc = getColorForRoom(room._id);
+
     if (dayBookings.length === 0 && dayBlocks.length === 0) {
       return (
         <div
           key={room._id}
-          className={`text-[10px] px-1 py-0.5 mb-0.5 rounded ${tc.available} ${tc.availableText} truncate cursor-pointer ${tc.availableHover}`}
+          className={`text-[10px] px-1 py-0.5 mb-0.5 rounded ${rc.bgLight} ${rc.text} truncate cursor-pointer hover:opacity-80 border-l-2 ${rc.border}`}
           onClick={() => openBookingDialog(dateStr, room._id)}
           title={`${room.name}: Available ${room.availabilityStart}–${room.availabilityEnd}`}
         >
@@ -448,11 +459,11 @@ export default function CalendarPage() {
     // Show compact timeline bar
     return (
       <div key={room._id} className="mb-0.5">
-        <div className="text-[9px] text-muted-foreground px-0.5">
+        <div className={cn("text-[9px] px-0.5 font-medium", rc.text)}>
           {room.name}
         </div>
         <div
-          className={`flex h-3 rounded overflow-hidden ${tc.available} cursor-pointer`}
+          className={`flex h-3 rounded overflow-hidden ${rc.bgLight} cursor-pointer`}
           title={`${room.name}: Click to book`}
           onClick={() => openBookingDialog(dateStr, room._id)}
         >
@@ -493,12 +504,12 @@ export default function CalendarPage() {
                 className={cn(
                   "flex-1 border-r border-white/50 last:border-0",
                   isBlocked
-                    ? tc.blocked
+                    ? "bg-red-500"
                     : isBooked
                       ? isMine
-                        ? tc.mine
-                        : tc.other
-                      : `${tc.available} ${tc.availableHover}`
+                        ? `${rc.bgMine} ring-1 ring-inset ring-white`
+                        : rc.bg
+                      : `${rc.bgLight} hover:opacity-80`
                 )}
                 title={
                   isBlocked
@@ -550,11 +561,13 @@ export default function CalendarPage() {
     const hasFullDayBlock = dayBlocks.some((b) => b.slotType === "full_day");
     const hasFullDayBooking = dayBookings.some((b) => b.slotType === "full_day");
 
+    const rc = getColorForRoom(room._id);
+
     if (hasFullDayBlock) {
       return (
         <div
           key={room._id}
-          className={`text-[10px] px-1 py-0.5 mb-0.5 rounded ${tc.blocked} ${tc.blockedText} truncate`}
+          className="text-[10px] px-1 py-0.5 mb-0.5 rounded bg-red-500 text-white truncate"
         >
           {room.name}: Blocked
         </div>
@@ -568,8 +581,8 @@ export default function CalendarPage() {
         <div
           key={room._id}
           className={cn(
-            "text-[10px] px-1 py-0.5 mb-0.5 rounded truncate cursor-pointer",
-            isMine ? `${tc.mine} ${tc.mineText}` : `${tc.other} ${tc.otherText}`
+            "text-[10px] px-1 py-0.5 mb-0.5 rounded truncate cursor-pointer text-white font-medium",
+            isMine ? `${rc.bgMine} ring-1 ring-inset ring-white` : rc.bg
           )}
           onClick={() => openBookedSlotDialog(booking._id)}
         >
@@ -583,7 +596,7 @@ export default function CalendarPage() {
       return (
         <div
           key={room._id}
-          className={`text-[10px] px-1 py-0.5 mb-0.5 rounded ${tc.available} ${tc.availableText} truncate cursor-pointer ${tc.availableHover}`}
+          className={`text-[10px] px-1 py-0.5 mb-0.5 rounded ${rc.bgLight} ${rc.text} truncate cursor-pointer hover:opacity-80 border-l-2 ${rc.border}`}
           onClick={() => openBookingDialog(dateStr, room._id)}
         >
           {room.name}: Available
@@ -600,7 +613,7 @@ export default function CalendarPage() {
 
           if (slotBlocked) {
             return (
-              <div key={slot} className={`text-[9px] px-0.5 rounded ${tc.blocked} ${tc.blockedText} flex-1 text-center`}>
+              <div key={slot} className="text-[9px] px-0.5 rounded bg-red-500 text-white flex-1 text-center">
                 {slot.toUpperCase()}
               </div>
             );
@@ -612,8 +625,8 @@ export default function CalendarPage() {
               <div
                 key={slot}
                 className={cn(
-                  "text-[9px] px-0.5 rounded flex-1 text-center cursor-pointer",
-                  isMine ? `${tc.mine} ${tc.mineText}` : `${tc.other} ${tc.otherText}`
+                  "text-[9px] px-0.5 rounded flex-1 text-center cursor-pointer text-white font-medium",
+                  isMine ? `${rc.bgMine} ring-1 ring-inset ring-white` : rc.bg
                 )}
                 onClick={() => openBookedSlotDialog(slotBooking._id)}
               >
@@ -625,7 +638,7 @@ export default function CalendarPage() {
           return (
             <div
               key={slot}
-              className={`text-[9px] px-0.5 rounded ${tc.available} ${tc.availableText} flex-1 text-center cursor-pointer ${tc.availableHover}`}
+              className={`text-[9px] px-0.5 rounded ${rc.bgLight} ${rc.text} flex-1 text-center cursor-pointer hover:opacity-80`}
               onClick={() => {
                 setSelectedDate(dateStr);
                 setSelectedRoom(room._id);
@@ -719,19 +732,23 @@ export default function CalendarPage() {
           >
             All Rooms
           </Button>
-          {rooms.map((room) => (
-            <Button
-              key={room._id}
-              variant={selectedRoom === room._id ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedRoom(selectedRoom === room._id ? null : room._id)}
-            >
-              {room.name}
-              <span className="ml-1 text-[10px] opacity-60">
-                {(room.pricingMode ?? "day_based") === "hourly" ? "(hourly)" : ""}
-              </span>
-            </Button>
-          ))}
+          {rooms.map((room) => {
+            const rc = getColorForRoom(room._id);
+            return (
+              <Button
+                key={room._id}
+                variant={selectedRoom === room._id ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedRoom(selectedRoom === room._id ? null : room._id)}
+              >
+                <span className={cn("inline-block h-2 w-2 rounded-full mr-1.5", rc.bgMine)} />
+                {room.name}
+                <span className="ml-1 text-[10px] opacity-60">
+                  {(room.pricingMode ?? "day_based") === "hourly" ? "(hourly)" : ""}
+                </span>
+              </Button>
+            );
+          })}
         </div>
       )}
 
@@ -867,19 +884,19 @@ export default function CalendarPage() {
       {/* Legend */}
       <div className="flex flex-wrap gap-4 text-sm">
         <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded ${tc.available}`} />
-          <span>Available</span>
+          <div className="w-3 h-3 rounded bg-gray-200 border border-gray-300" />
+          <span>Available (in room colour)</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded ${tc.mine}`} />
+          <div className="w-3 h-3 rounded bg-gray-500 ring-1 ring-white" />
           <span>Your Booking</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded ${tc.other}`} />
-          <span>Booked (click for options)</span>
+          <div className="w-3 h-3 rounded bg-gray-400" />
+          <span>Other&apos;s Booking</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className={`w-3 h-3 rounded ${tc.blocked}`} />
+          <div className="w-3 h-3 rounded bg-red-500" />
           <span>Blocked</span>
         </div>
       </div>
