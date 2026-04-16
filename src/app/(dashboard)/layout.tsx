@@ -47,6 +47,8 @@ export default function DashboardLayout({
     user?.id ? { clerkUserId: user.id } : "skip"
   );
 
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   useEffect(() => {
     if (userLoaded && !isSignedIn) {
       router.push("/sign-in");
@@ -125,8 +127,6 @@ export default function DashboardLayout({
   // Show first-login modal if profile is not complete
   const needsProfileSetup =
     convexUser !== undefined && convexUser?.isProfileComplete !== true;
-
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className="flex h-screen">
