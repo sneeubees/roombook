@@ -24,6 +24,7 @@ import type * as notifications from "../notifications.js";
 import type * as organizations from "../organizations.js";
 import type * as roomBlocks from "../roomBlocks.js";
 import type * as rooms from "../rooms.js";
+import type * as seed from "../seed.js";
 import type * as users from "../users.js";
 import type * as waitlist from "../waitlist.js";
 
@@ -50,6 +51,7 @@ declare const fullApi: ApiFromModules<{
   organizations: typeof organizations;
   roomBlocks: typeof roomBlocks;
   rooms: typeof rooms;
+  seed: typeof seed;
   users: typeof users;
   waitlist: typeof waitlist;
 }>;
