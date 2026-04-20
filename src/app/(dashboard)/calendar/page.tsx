@@ -755,7 +755,7 @@ export default function CalendarPage() {
           <div
             key={h}
             className={cn(
-              "absolute left-0 right-0 flex items-start hover:bg-muted/20 cursor-pointer",
+              "absolute left-0 right-0 flex items-center hover:bg-muted/20 cursor-pointer",
               i > 0 && "border-t border-dashed border-muted-foreground/30"
             )}
             style={{ top: i * hourPx, height: hourPx }}
@@ -768,7 +768,7 @@ export default function CalendarPage() {
             }
             title={`Book ${String(h).padStart(2, "0")}:00`}
           >
-            <div className="w-9 shrink-0 text-[9px] text-muted-foreground pl-1 pt-0.5">
+            <div className="w-9 shrink-0 text-[9px] text-muted-foreground pl-1 leading-none">
               {String(h).padStart(2, "0")}:00
             </div>
           </div>
@@ -794,11 +794,11 @@ export default function CalendarPage() {
               }
             }
             const top = ((startMin - startH * 60) / 60) * hourPx;
-            const height = Math.max(((endMin - startMin) / 60) * hourPx, 20);
+            const height = Math.max(((endMin - startMin) / 60) * hourPx, hourPx);
             return (
               <div
                 key={`blk-${i}`}
-                className="absolute left-9 right-0.5 bg-red-500/85 text-white rounded flex items-center justify-center text-[10px] font-medium z-10"
+                className="absolute left-0 right-0 bg-red-500/85 text-white flex items-center justify-center text-[10px] font-medium z-10"
                 style={{ top, height }}
               >
                 Blocked
@@ -808,7 +808,7 @@ export default function CalendarPage() {
         {dayBookings.map((b) => {
           const { startMin, endMin } = bookingRangeMins(b, room);
           const top = ((startMin - startH * 60) / 60) * hourPx;
-          const height = Math.max(((endMin - startMin) / 60) * hourPx, 20);
+          const height = Math.max(((endMin - startMin) / 60) * hourPx, hourPx);
           const color = getColorForBooking(b);
           const { main } = getBookingLabel(b);
           const isMine = b.userId === user?.id;
@@ -822,7 +822,7 @@ export default function CalendarPage() {
             <div
               key={b._id}
               className={cn(
-                "absolute left-9 right-0.5 rounded px-1 flex flex-col items-center justify-center text-center cursor-pointer hover:opacity-90 text-white overflow-hidden z-20 ring-1 ring-inset ring-white/40",
+                "absolute left-0 right-0 flex items-center justify-center text-center cursor-pointer hover:opacity-90 text-white overflow-hidden z-20 px-1",
                 isMine ? color.bgMine : color.bg
               )}
               style={{ top, height }}
@@ -832,14 +832,9 @@ export default function CalendarPage() {
               }}
               title={`${main} (${timeLabel})`}
             >
-              <div className="text-[10px] font-semibold leading-tight truncate w-full">
+              <div className="text-[10px] font-semibold leading-tight truncate">
                 {main}
               </div>
-              {height > 28 && (
-                <div className="text-[9px] opacity-85 leading-tight">
-                  {timeLabel}
-                </div>
-              )}
             </div>
           );
         })}
@@ -971,7 +966,7 @@ export default function CalendarPage() {
                         key={dateStr}
                         className={cn(
                           "border-b border-r p-1",
-                          singleRoom ? "min-h-[240px]" : "min-h-[100px]",
+                          singleRoom ? "min-h-[160px]" : "min-h-[100px]",
                           !inMonth && "bg-muted/30",
                           isPast && "opacity-50"
                         )}
@@ -986,7 +981,7 @@ export default function CalendarPage() {
                         </div>
                         {inMonth && !isPast && (
                           singleRoom
-                            ? renderSingleRoomCell(singleRoom, dateStr, 22)
+                            ? renderSingleRoomCell(singleRoom, dateStr, 13)
                             : filteredRooms.map((room) =>
                                 (room.pricingMode ?? "day_based") === "hourly"
                                   ? renderHourlyRoomDay(room, dateStr)
@@ -1015,7 +1010,7 @@ export default function CalendarPage() {
                       key={dateStr}
                       className={cn(
                         "border-b border-r p-2",
-                        singleRoom ? "min-h-[360px]" : "min-h-[140px]",
+                        singleRoom ? "min-h-[220px]" : "min-h-[140px]",
                         isPast && "opacity-50",
                         today && "bg-primary/5"
                       )}
@@ -1032,7 +1027,7 @@ export default function CalendarPage() {
                       </div>
                       {!isPast && (
                         singleRoom
-                          ? renderSingleRoomCell(singleRoom, dateStr, 32)
+                          ? renderSingleRoomCell(singleRoom, dateStr, 18)
                           : filteredRooms.map((room) =>
                               (room.pricingMode ?? "day_based") === "hourly"
                                 ? renderHourlyRoomDay(room, dateStr)
@@ -1074,7 +1069,7 @@ export default function CalendarPage() {
                           : `Full Day R${((singleRoom.fullDayRate ?? 0) / 100).toFixed(2)} · Half Day R${((singleRoom.halfDayRate ?? 0) / 100).toFixed(2)}`}
                       </span>
                     </div>
-                    {!isPast && renderSingleRoomCell(singleRoom, dateStr, 48)}
+                    {!isPast && renderSingleRoomCell(singleRoom, dateStr, 26)}
                   </div>
                 ) : (
                   <div className="space-y-3">
