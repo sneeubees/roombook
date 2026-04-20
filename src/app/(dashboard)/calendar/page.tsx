@@ -818,11 +818,17 @@ export default function CalendarPage() {
               : b.slotType === "full_day"
                 ? "Full Day"
                 : b.slotType.toUpperCase();
+          const rowLabel =
+            b.slotType === "session" && b.startTime
+              ? b.startTime
+              : b.slotType === "full_day"
+                ? "Full"
+                : b.slotType.toUpperCase();
           return (
             <div
               key={b._id}
               className={cn(
-                "absolute left-0 right-0 flex items-center justify-center text-center cursor-pointer hover:opacity-90 text-white overflow-hidden z-20 px-1",
+                "absolute left-0 right-0 flex items-center cursor-pointer hover:opacity-90 text-white overflow-hidden z-20",
                 isMine ? color.bgMine : color.bg
               )}
               style={{ top, height }}
@@ -832,7 +838,10 @@ export default function CalendarPage() {
               }}
               title={`${main} (${timeLabel})`}
             >
-              <div className="text-[10px] font-semibold leading-tight truncate">
+              <div className="w-9 shrink-0 text-[9px] pl-1 leading-none opacity-95">
+                {rowLabel}
+              </div>
+              <div className="flex-1 min-w-0 text-[10px] font-semibold leading-tight truncate text-center pr-2">
                 {main}
               </div>
             </div>
