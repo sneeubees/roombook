@@ -460,248 +460,389 @@ export default function CalendarPage() {
     return { startMin: roomStart, endMin: roomEnd };
   }
 
-  const dayRangeHours = useMemo(() => {
-    let min = 8;
-    let max = 18;
-    (rooms ?? []).forEach((r) => {
-      if (r.availabilityStart) {
-        min = Math.min(min, parseInt(r.availabilityStart.split(":")[0]));
-      }
-      if (r.availabilityEnd) {
-        const eh = parseInt(r.availabilityEnd.split(":")[0]);
-        max = Math.max(max, eh);
-      }
-    });
-    return { startH: Math.max(min, 0), endH: Math.min(Math.max(max, min + 1), 24) };
-  }, [rooms]);
-
-  function getSortedDayBookings(dateStr: string) {
-    return getBookingsForDay(dateStr)
-      .filter((b) => (selectedRoom ? b.roomId === selectedRoom : true))
-      .sort((a, b) => {
-        const ra = rooms?.find((r) => r._id === a.roomId);
-        const rb = rooms?.find((r) => r._id === b.roomId);
-        return bookingRangeMins(a, ra).startMin - bookingRangeMins(b, rb).startMin;
-      });
-  }
-
-  // ---- BookingPill (compact block used in month/week cells) ----
-  function BookingPill({
-    booking,
-    size,
-  }: {
-    booking: NonNullable<typeof bookings>[0];
-    size: "xs" | "sm";
-  }) {
-    const color = getColorForBooking(booking);
-    const { main, sub } = getBookingLabel(booking);
-    const isMine = booking.userId === user?.id;
-    const room = rooms?.find((r) => r._id === booking.roomId);
-    const timeLabel =
-      booking.slotType === "session" && booking.startTime && booking.endTime
-        ? `${booking.startTime}–${booking.endTime}`
-        : booking.slotType === "full_day"
-          ? "Full Day"
-          : booking.slotType.toUpperCase();
-    const shortTime =
-      booking.slotType === "session" && booking.startTime
-        ? booking.startTime
-        : booking.slotType === "full_day"
-          ? "Day"
-          : booking.slotType.toUpperCase();
-    return (
-      <div
-        className={cn(
-          "rounded text-white cursor-pointer hover:opacity-90 font-medium text-center leading-tight overflow-hidden",
-          isMine ? color.bgMine : color.bg,
-          size === "xs" && "text-[10px] px-1 py-0.5",
-          size === "sm" && "text-[11px] px-1.5 py-1"
-        )}
-        onClick={(e) => {
-          e.stopPropagation();
-          openBookedSlotDialog(booking._id);
-        }}
-        title={`${main}${sub ? " — " + sub : ""} · ${room?.name ?? ""} · ${timeLabel}`}
-      >
-        {size === "xs" ? (
-          <div className="truncate">
-            <span className="opacity-80 mr-1">{shortTime}</span>
-            {main}
+  // Render a day cell for an HOURLY room (All Rooms view)
+  function renderHourlyRoomDay(
+    room: NonNullable<typeof rooms>[0],
+    dateStr: string
+  ) {
+    if (room.availableDays && room.availableDays.length > 0) {
+      const dayOfWeek = new Date(dateStr + "T12:00:00").getDay();
+      if (!room.availableDays.includes(dayOfWeek)) {
+        return (
+          <div
+            key={room._id}
+            className="text-[10px] px-1 py-0.5 mb-0.5 rounded bg-muted text-muted-foreground truncate opacity-40"
+          >
+            {room.name}: Closed
           </div>
-        ) : (
-          <>
-            <div className="truncate">{main}</div>
-            <div className="text-[9px] opacity-85 truncate">
-              {timeLabel}
-              {!selectedRoom && room?.name ? ` · ${room.name}` : ""}
-            </div>
-            {sub && (
-              <div className="text-[9px] opacity-70 truncate">{sub}</div>
-            )}
-          </>
-        )}
+        );
+      }
+    }
+
+    const dayBookings = getBookingsForDay(dateStr).filter((b) => b.roomId === room._id);
+    const dayBlocks = getBlocksForDay(dateStr).filter((b) => b.roomId === room._id);
+    const hasFullDayBlock = dayBlocks.some((b) => b.slotType === "full_day");
+
+    if (hasFullDayBlock) {
+      return (
+        <div
+          key={room._id}
+          className={`text-[10px] px-1 py-0.5 mb-0.5 rounded ${tc.blocked} ${tc.blockedText} truncate`}
+        >
+          {room.name}: Blocked
+        </div>
+      );
+    }
+
+    const startH = parseInt((room.availabilityStart ?? "09:00").split(":")[0]);
+    const endH = parseInt((room.availabilityEnd ?? "17:00").split(":")[0]);
+    const totalHours = endH - startH;
+
+    const rc = getColorForRoom(room._id);
+
+    if (dayBookings.length === 0 && dayBlocks.length === 0) {
+      return (
+        <div
+          key={room._id}
+          className={`text-[10px] px-1 py-0.5 mb-0.5 rounded ${rc.bgLight} ${rc.text} truncate cursor-pointer hover:opacity-80 border-l-2 ${rc.border}`}
+          onClick={() => openBookingDialog(dateStr, room._id)}
+          title={`${room.name}: Available ${room.availabilityStart}–${room.availabilityEnd}`}
+        >
+          {room.name}: {room.availabilityStart}–{room.availabilityEnd}
+        </div>
+      );
+    }
+
+    return (
+      <div key={room._id} className="mb-0.5">
+        <div className={cn("text-[9px] px-0.5 font-medium", rc.text)}>
+          {room.name}
+        </div>
+        <div
+          className={`flex h-3 rounded overflow-hidden ${rc.bgLight} cursor-pointer`}
+          title={`${room.name}: Click to book`}
+          onClick={() => openBookingDialog(dateStr, room._id)}
+        >
+          {Array.from({ length: totalHours * 2 }, (_, i) => {
+            const slotH = startH + Math.floor(i / 2);
+            const slotM = (i % 2) * 30;
+            const slotStart = `${String(slotH).padStart(2, "0")}:${String(slotM).padStart(2, "0")}`;
+            const slotEnd = `${String(slotH + (slotM === 30 ? 1 : 0)).padStart(2, "0")}:${slotM === 30 ? "00" : "30"}`;
+
+            const isBooked = dayBookings.some(
+              (b) =>
+                b.startTime &&
+                b.endTime &&
+                timesOverlap(slotStart, slotEnd, b.startTime, b.endTime)
+            );
+            const isBlocked = dayBlocks.some(
+              (b) =>
+                b.slotType === "time_range" &&
+                b.startTime &&
+                b.endTime &&
+                timesOverlap(slotStart, slotEnd, b.startTime, b.endTime)
+            );
+
+            const booking = isBooked
+              ? dayBookings.find(
+                  (b) =>
+                    b.startTime &&
+                    b.endTime &&
+                    timesOverlap(slotStart, slotEnd, b.startTime, b.endTime)
+                )
+              : null;
+            const isMine = booking?.userId === user?.id;
+
+            return (
+              <div
+                key={i}
+                className={cn(
+                  "flex-1 border-r border-white/50 last:border-0",
+                  isBlocked
+                    ? "bg-red-500"
+                    : isBooked
+                      ? isMine
+                        ? `${rc.bgMine} ring-1 ring-inset ring-white`
+                        : rc.bg
+                      : `${rc.bgLight} hover:opacity-80`
+                )}
+                title={
+                  isBlocked
+                    ? `Blocked ${slotStart}`
+                    : isBooked && booking
+                      ? showNames
+                        ? `${resolveUserName(booking.userId)} (${booking.startTime}–${booking.endTime})`
+                        : `Booked (${booking.startTime}–${booking.endTime})`
+                      : `Available ${slotStart}`
+                }
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (isBooked && booking) {
+                    openBookedSlotDialog(booking._id);
+                  } else if (!isBlocked) {
+                    openBookingDialog(dateStr, room._id, slotStart);
+                  }
+                }}
+              />
+            );
+          })}
+        </div>
       </div>
     );
   }
 
-  // ---- Full timeline (day view) ----
-  function renderTimeline(dateStr: string, hourPx: number) {
-    const { startH, endH } = dayRangeHours;
-    const hours = Array.from({ length: endH - startH + 1 }, (_, i) => startH + i);
-    const totalPx = (endH - startH) * hourPx;
-    const visibleRooms = filteredRooms;
-    const dayBookings = getBookingsForDay(dateStr);
-    const dayBlocks = getBlocksForDay(dateStr);
+  function renderDayBasedRoomDay(
+    room: NonNullable<typeof rooms>[0],
+    dateStr: string
+  ) {
+    if (room.availableDays && room.availableDays.length > 0) {
+      const dayOfWeek = new Date(dateStr + "T12:00:00").getDay();
+      if (!room.availableDays.includes(dayOfWeek)) {
+        return (
+          <div
+            key={room._id}
+            className="text-[10px] px-1 py-0.5 mb-0.5 rounded bg-muted text-muted-foreground truncate opacity-40"
+          >
+            {room.name}: Closed
+          </div>
+        );
+      }
+    }
+
+    const dayBookings = getBookingsForDay(dateStr).filter((b) => b.roomId === room._id);
+    const dayBlocks = getBlocksForDay(dateStr).filter((b) => b.roomId === room._id);
+    const hasFullDayBlock = dayBlocks.some((b) => b.slotType === "full_day");
+    const hasFullDayBooking = dayBookings.some((b) => b.slotType === "full_day");
+
+    const rc = getColorForRoom(room._id);
+
+    if (hasFullDayBlock) {
+      return (
+        <div
+          key={room._id}
+          className="text-[10px] px-1 py-0.5 mb-0.5 rounded bg-red-500 text-white truncate"
+        >
+          {room.name}: Blocked
+        </div>
+      );
+    }
+
+    if (hasFullDayBooking) {
+      const booking = dayBookings.find((b) => b.slotType === "full_day")!;
+      const isMine = booking.userId === user?.id;
+      return (
+        <div
+          key={room._id}
+          className={cn(
+            "text-[10px] px-1 py-0.5 mb-0.5 rounded truncate cursor-pointer text-white font-medium",
+            isMine ? `${rc.bgMine} ring-1 ring-inset ring-white` : rc.bg
+          )}
+          onClick={() => openBookedSlotDialog(booking._id)}
+        >
+          {room.name}: {isMine ? "You" : showNames ? resolveUserName(booking.userId) : "Booked"}
+        </div>
+      );
+    }
+
+    const available = isSlotAvailable(dateStr, room._id, "full_day");
+    if (available) {
+      return (
+        <div
+          key={room._id}
+          className={`text-[10px] px-1 py-0.5 mb-0.5 rounded ${rc.bgLight} ${rc.text} truncate cursor-pointer hover:opacity-80 border-l-2 ${rc.border}`}
+          onClick={() => openBookingDialog(dateStr, room._id)}
+        >
+          {room.name}: Available
+        </div>
+      );
+    }
 
     return (
-      <div className="flex overflow-x-auto">
-        <div className="w-12 shrink-0 pt-7">
-          {hours.map((h) => (
-            <div
-              key={h}
-              className="text-right pr-2 text-[10px] text-muted-foreground -mt-1.5"
-              style={{ height: hourPx }}
-            >
-              {String(h).padStart(2, "0")}:00
-            </div>
-          ))}
-        </div>
-        <div className="flex-1 flex min-w-0">
-          {visibleRooms.map((room) => {
-            const roomBookings = dayBookings.filter((b) => b.roomId === room._id);
-            const roomBlocks = dayBlocks.filter((b) => b.roomId === room._id);
-            const dow = new Date(dateStr + "T12:00:00").getDay();
-            const closedDay =
-              room.availableDays &&
-              room.availableDays.length > 0 &&
-              !room.availableDays.includes(dow);
-            const fullDayBlocked = roomBlocks.some((b) => b.slotType === "full_day");
-            const rc = getColorForRoom(room._id);
+      <div key={room._id} className="flex gap-0.5 mb-0.5">
+        {(["am", "pm"] as const).map((slot) => {
+          const slotBooking = dayBookings.find((b) => b.slotType === slot);
+          const slotBlocked = dayBlocks.some((b) => b.slotType === slot);
+
+          if (slotBlocked) {
+            return (
+              <div key={slot} className="text-[9px] px-0.5 rounded bg-red-500 text-white flex-1 text-center">
+                {slot.toUpperCase()}
+              </div>
+            );
+          }
+
+          if (slotBooking) {
+            const isMine = slotBooking.userId === user?.id;
             return (
               <div
-                key={room._id}
-                className="flex-1 min-w-[120px] border-l last:border-r relative"
+                key={slot}
+                className={cn(
+                  "text-[9px] px-0.5 rounded flex-1 text-center cursor-pointer text-white font-medium",
+                  isMine ? `${rc.bgMine} ring-1 ring-inset ring-white` : rc.bg
+                )}
+                onClick={() => openBookedSlotDialog(slotBooking._id)}
               >
-                <div
-                  className={cn(
-                    "px-1 py-1 text-[11px] font-medium truncate text-center border-b sticky top-0 z-30",
-                    rc.bgLight,
-                    rc.text
-                  )}
-                >
-                  {room.name}
-                </div>
-                <div
-                  className={cn("relative", closedDay && "bg-muted/40")}
-                  style={{ height: totalPx }}
-                >
-                  {closedDay ? (
-                    <div className="absolute inset-0 flex items-center justify-center text-muted-foreground text-[10px]">
-                      Closed
-                    </div>
-                  ) : fullDayBlocked ? (
-                    <div className="absolute inset-0 bg-red-500 text-white flex items-center justify-center text-[11px] font-medium">
-                      Blocked
-                    </div>
-                  ) : (
-                    <>
-                      {hours.map((h) => (
-                        <div
-                          key={h}
-                          className="absolute left-0 right-0 border-t border-dashed border-muted-foreground/20"
-                          style={{ top: (h - startH) * hourPx }}
-                        />
-                      ))}
-                      <div
-                        className="absolute inset-0 cursor-pointer hover:bg-muted/20"
-                        onClick={() => openBookingDialog(dateStr, room._id)}
-                        title={`Book ${room.name}`}
-                      />
-                      {roomBlocks
-                        .filter((b) => b.slotType !== "full_day")
-                        .map((b, i) => {
-                          let startMin = 0;
-                          let endMin = 0;
-                          if (b.slotType === "time_range" && b.startTime && b.endTime) {
-                            startMin = parseHM(b.startTime);
-                            endMin = parseHM(b.endTime);
-                          } else if (b.slotType === "am" || b.slotType === "pm") {
-                            const rs = parseHM(room.availabilityStart ?? "08:00");
-                            const re = parseHM(room.availabilityEnd ?? "18:00");
-                            const mid = Math.floor((rs + re) / 2);
-                            if (b.slotType === "am") {
-                              startMin = rs;
-                              endMin = mid;
-                            } else {
-                              startMin = mid;
-                              endMin = re;
-                            }
-                          }
-                          const top = ((startMin - startH * 60) / 60) * hourPx;
-                          const h = Math.max(((endMin - startMin) / 60) * hourPx, 20);
-                          return (
-                            <div
-                              key={`blk-${i}`}
-                              className="absolute left-0.5 right-0.5 bg-red-500/85 text-white rounded flex items-center justify-center text-[10px] font-medium z-10"
-                              style={{ top, height: h }}
-                            >
-                              Blocked
-                            </div>
-                          );
-                        })}
-                      {roomBookings.map((b) => {
-                        const { startMin, endMin } = bookingRangeMins(b, room);
-                        const top = ((startMin - startH * 60) / 60) * hourPx;
-                        const height = Math.max(
-                          ((endMin - startMin) / 60) * hourPx,
-                          22
-                        );
-                        const color = getColorForBooking(b);
-                        const { main, sub } = getBookingLabel(b);
-                        const isMine = b.userId === user?.id;
-                        const timeLabel =
-                          b.slotType === "session" && b.startTime && b.endTime
-                            ? `${b.startTime}–${b.endTime}`
-                            : b.slotType === "full_day"
-                              ? "Full Day"
-                              : b.slotType.toUpperCase();
-                        return (
-                          <div
-                            key={b._id}
-                            className={cn(
-                              "absolute left-0.5 right-0.5 rounded px-1 flex flex-col items-center justify-center text-center cursor-pointer hover:opacity-90 text-white overflow-hidden z-20 ring-1 ring-inset ring-white/40",
-                              isMine ? color.bgMine : color.bg
-                            )}
-                            style={{ top, height }}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              openBookedSlotDialog(b._id);
-                            }}
-                            title={`${main}${sub ? " — " + sub : ""} (${timeLabel})`}
-                          >
-                            <div className="text-[11px] font-semibold leading-tight truncate w-full">
-                              {main}
-                            </div>
-                            {sub && height > 44 && (
-                              <div className="text-[9px] opacity-85 truncate w-full leading-tight">
-                                {sub}
-                              </div>
-                            )}
-                            {height > 28 && (
-                              <div className="text-[9px] opacity-75 leading-tight">
-                                {timeLabel}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </>
-                  )}
-                </div>
+                {slot.toUpperCase()}
+              </div>
+            );
+          }
+
+          return (
+            <div
+              key={slot}
+              className={`text-[9px] px-0.5 rounded ${rc.bgLight} ${rc.text} flex-1 text-center cursor-pointer hover:opacity-80`}
+              onClick={() => {
+                setSelectedDate(dateStr);
+                setSelectedRoom(room._id);
+                setBookingSlot(slot);
+                setShowBookingDialog(true);
+              }}
+            >
+              {slot.toUpperCase()}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Single-room hour-grid cell — used when one room is selected.
+  // One row per bookable hour; bookings positioned by start time with name centered.
+  function renderSingleRoomCell(
+    room: NonNullable<typeof rooms>[0],
+    dateStr: string,
+    hourPx: number
+  ) {
+    const startH = parseInt((room.availabilityStart ?? "08:00").split(":")[0]);
+    const endH = parseInt((room.availabilityEnd ?? "18:00").split(":")[0]);
+    const hours = Array.from({ length: endH - startH }, (_, i) => startH + i);
+    const totalPx = hours.length * hourPx;
+
+    const dayBookings = getBookingsForDay(dateStr).filter((b) => b.roomId === room._id);
+    const dayBlocks = getBlocksForDay(dateStr).filter((b) => b.roomId === room._id);
+
+    const dow = new Date(dateStr + "T12:00:00").getDay();
+    const closedDay =
+      room.availableDays &&
+      room.availableDays.length > 0 &&
+      !room.availableDays.includes(dow);
+    if (closedDay) {
+      return (
+        <div
+          className="text-[10px] text-muted-foreground text-center py-2 bg-muted/30 rounded"
+          style={{ height: Math.max(totalPx, 40) }}
+        >
+          Closed
+        </div>
+      );
+    }
+
+    const fullDayBlocked = dayBlocks.some((b) => b.slotType === "full_day");
+    if (fullDayBlocked) {
+      return (
+        <div
+          className="text-[11px] text-white bg-red-500 text-center flex items-center justify-center rounded font-medium"
+          style={{ height: totalPx }}
+        >
+          Blocked
+        </div>
+      );
+    }
+
+    return (
+      <div className="relative rounded bg-muted/5 border" style={{ height: totalPx }}>
+        {hours.map((h, i) => (
+          <div
+            key={h}
+            className={cn(
+              "absolute left-0 right-0 flex items-start hover:bg-muted/20 cursor-pointer",
+              i > 0 && "border-t border-dashed border-muted-foreground/30"
+            )}
+            style={{ top: i * hourPx, height: hourPx }}
+            onClick={() =>
+              openBookingDialog(
+                dateStr,
+                room._id,
+                `${String(h).padStart(2, "0")}:00`
+              )
+            }
+            title={`Book ${String(h).padStart(2, "0")}:00`}
+          >
+            <div className="w-9 shrink-0 text-[9px] text-muted-foreground pl-1 pt-0.5">
+              {String(h).padStart(2, "0")}:00
+            </div>
+          </div>
+        ))}
+        {dayBlocks
+          .filter((b) => b.slotType !== "full_day")
+          .map((b, i) => {
+            let startMin = 0,
+              endMin = 0;
+            if (b.slotType === "time_range" && b.startTime && b.endTime) {
+              startMin = parseHM(b.startTime);
+              endMin = parseHM(b.endTime);
+            } else if (b.slotType === "am" || b.slotType === "pm") {
+              const rs = parseHM(room.availabilityStart ?? "08:00");
+              const re = parseHM(room.availabilityEnd ?? "18:00");
+              const mid = Math.floor((rs + re) / 2);
+              if (b.slotType === "am") {
+                startMin = rs;
+                endMin = mid;
+              } else {
+                startMin = mid;
+                endMin = re;
+              }
+            }
+            const top = ((startMin - startH * 60) / 60) * hourPx;
+            const height = Math.max(((endMin - startMin) / 60) * hourPx, 20);
+            return (
+              <div
+                key={`blk-${i}`}
+                className="absolute left-9 right-0.5 bg-red-500/85 text-white rounded flex items-center justify-center text-[10px] font-medium z-10"
+                style={{ top, height }}
+              >
+                Blocked
               </div>
             );
           })}
-        </div>
+        {dayBookings.map((b) => {
+          const { startMin, endMin } = bookingRangeMins(b, room);
+          const top = ((startMin - startH * 60) / 60) * hourPx;
+          const height = Math.max(((endMin - startMin) / 60) * hourPx, 20);
+          const color = getColorForBooking(b);
+          const { main } = getBookingLabel(b);
+          const isMine = b.userId === user?.id;
+          const timeLabel =
+            b.slotType === "session" && b.startTime && b.endTime
+              ? `${b.startTime}–${b.endTime}`
+              : b.slotType === "full_day"
+                ? "Full Day"
+                : b.slotType.toUpperCase();
+          return (
+            <div
+              key={b._id}
+              className={cn(
+                "absolute left-9 right-0.5 rounded px-1 flex flex-col items-center justify-center text-center cursor-pointer hover:opacity-90 text-white overflow-hidden z-20 ring-1 ring-inset ring-white/40",
+                isMine ? color.bgMine : color.bg
+              )}
+              style={{ top, height }}
+              onClick={(e) => {
+                e.stopPropagation();
+                openBookedSlotDialog(b._id);
+              }}
+              title={`${main} (${timeLabel})`}
+            >
+              <div className="text-[10px] font-semibold leading-tight truncate w-full">
+                {main}
+              </div>
+              {height > 28 && (
+                <div className="text-[9px] opacity-85 leading-tight">
+                  {timeLabel}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -807,121 +948,113 @@ export default function CalendarPage() {
       {/* Calendar Grid */}
       <Card>
         <CardContent className="p-0">
-          {/* MONTH VIEW — stacked chronological booking pills per day */}
-          {viewMode === "month" && (
-            <>
-              <div className="grid grid-cols-7 border-b">
-                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
-                  <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
-                    {day}
-                  </div>
-                ))}
-              </div>
-              <div className="grid grid-cols-7">
-                {monthDays.map((day) => {
+          {/* MONTH VIEW */}
+          {viewMode === "month" && (() => {
+            const singleRoom = selectedRoom ? rooms?.find((r) => r._id === selectedRoom) : null;
+            return (
+              <>
+                <div className="grid grid-cols-7 border-b">
+                  {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+                    <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-7">
+                  {monthDays.map((day) => {
+                    const dateStr = format(day, "yyyy-MM-dd");
+                    const inMonth = isSameMonth(day, currentMonth);
+                    const today = isToday(day);
+                    const isPast = isBefore(day, new Date()) && !today;
+                    return (
+                      <div
+                        key={dateStr}
+                        className={cn(
+                          "border-b border-r p-1",
+                          singleRoom ? "min-h-[240px]" : "min-h-[100px]",
+                          !inMonth && "bg-muted/30",
+                          isPast && "opacity-50"
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "text-xs font-medium mb-1 px-1",
+                            today && "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center"
+                          )}
+                        >
+                          {format(day, "d")}
+                        </div>
+                        {inMonth && !isPast && (
+                          singleRoom
+                            ? renderSingleRoomCell(singleRoom, dateStr, 22)
+                            : filteredRooms.map((room) =>
+                                (room.pricingMode ?? "day_based") === "hourly"
+                                  ? renderHourlyRoomDay(room, dateStr)
+                                  : renderDayBasedRoomDay(room, dateStr)
+                              )
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            );
+          })()}
+
+          {/* WEEK VIEW */}
+          {viewMode === "week" && (() => {
+            const singleRoom = selectedRoom ? rooms?.find((r) => r._id === selectedRoom) : null;
+            return (
+              <div className={cn(singleRoom ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7" : "grid grid-cols-3")}>
+                {weekDays.map((day) => {
                   const dateStr = format(day, "yyyy-MM-dd");
-                  const inMonth = isSameMonth(day, currentMonth);
                   const today = isToday(day);
                   const isPast = isBefore(day, new Date()) && !today;
-                  const cellBookings = inMonth && !isPast ? getSortedDayBookings(dateStr) : [];
                   return (
                     <div
                       key={dateStr}
                       className={cn(
-                        "min-h-[110px] border-b border-r p-1 space-y-0.5",
-                        !inMonth && "bg-muted/30",
+                        "border-b border-r p-2",
+                        singleRoom ? "min-h-[360px]" : "min-h-[140px]",
                         isPast && "opacity-50",
-                        inMonth && !isPast && "cursor-pointer hover:bg-muted/20"
+                        today && "bg-primary/5"
                       )}
-                      onClick={() => {
-                        if (inMonth && !isPast && filteredRooms.length === 1) {
-                          openBookingDialog(dateStr, filteredRooms[0]._id);
-                        }
-                      }}
                     >
-                      <div
-                        className={cn(
-                          "text-xs font-medium mb-1 px-1",
-                          today && "bg-primary text-primary-foreground rounded-full w-6 h-6 flex items-center justify-center"
-                        )}
-                      >
-                        {format(day, "d")}
-                      </div>
-                      {cellBookings.slice(0, 5).map((b) => (
-                        <BookingPill key={b._id} booking={b} size="xs" />
-                      ))}
-                      {cellBookings.length > 5 && (
-                        <div className="text-[9px] text-muted-foreground text-center">
-                          +{cellBookings.length - 5} more
+                      <div className="flex items-center gap-2 mb-2">
+                        <div
+                          className={cn(
+                            "text-sm font-medium px-2 py-0.5 rounded",
+                            today && "bg-primary text-primary-foreground"
+                          )}
+                        >
+                          {format(day, "EEE d MMM")}
                         </div>
+                      </div>
+                      {!isPast && (
+                        singleRoom
+                          ? renderSingleRoomCell(singleRoom, dateStr, 32)
+                          : filteredRooms.map((room) =>
+                              (room.pricingMode ?? "day_based") === "hourly"
+                                ? renderHourlyRoomDay(room, dateStr)
+                                : renderDayBasedRoomDay(room, dateStr)
+                            )
                       )}
                     </div>
                   );
                 })}
               </div>
-            </>
-          )}
+            );
+          })()}
 
-          {/* WEEK VIEW — 7 day columns, bookings stacked chronologically */}
-          {viewMode === "week" && (
-            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7">
-              {weekDays.map((day) => {
-                const dateStr = format(day, "yyyy-MM-dd");
-                const today = isToday(day);
-                const isPast = isBefore(day, new Date()) && !today;
-                const cellBookings = !isPast ? getSortedDayBookings(dateStr) : [];
-                return (
-                  <div
-                    key={dateStr}
-                    className={cn(
-                      "min-h-[220px] border-b border-r p-2 space-y-1",
-                      isPast && "opacity-50",
-                      today && "bg-primary/5"
-                    )}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <div
-                        className={cn(
-                          "text-sm font-medium px-2 py-0.5 rounded",
-                          today && "bg-primary text-primary-foreground"
-                        )}
-                      >
-                        {format(day, "EEE d MMM")}
-                      </div>
-                      {!isPast && filteredRooms.length === 1 && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-6 px-1 text-[10px]"
-                          onClick={() => openBookingDialog(dateStr, filteredRooms[0]._id)}
-                        >
-                          + Book
-                        </Button>
-                      )}
-                    </div>
-                    {cellBookings.length > 0 ? (
-                      cellBookings.map((b) => (
-                        <BookingPill key={b._id} booking={b} size="sm" />
-                      ))
-                    ) : !isPast ? (
-                      <div className="text-[10px] text-muted-foreground text-center pt-2">
-                        No bookings
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {/* DAY VIEW — full-width timeline, rooms as columns */}
+          {/* DAY VIEW */}
           {viewMode === "day" && (() => {
             const dateStr = format(dayViewDate, "yyyy-MM-dd");
             const today = isToday(dayViewDate);
             const isPast = isBefore(dayViewDate, new Date()) && !today;
+            const singleRoom = selectedRoom ? rooms?.find((r) => r._id === selectedRoom) : null;
             return (
-              <div className={cn("p-4 space-y-4", isPast && "opacity-60")}>
-                <div className="flex items-center gap-2">
+              <div className={cn("p-4", isPast && "opacity-50")}>
+                <div className="flex items-center gap-2 mb-4">
                   <div
                     className={cn(
                       "text-lg font-semibold px-3 py-1 rounded",
@@ -931,10 +1064,37 @@ export default function CalendarPage() {
                     {format(dayViewDate, "EEEE, d MMMM yyyy")}
                   </div>
                 </div>
-                {filteredRooms.length > 0 ? (
-                  renderTimeline(dateStr, 48)
+                {singleRoom ? (
+                  <div className="border rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="font-medium">{singleRoom.name}</h3>
+                      <span className="text-xs text-muted-foreground">
+                        {(singleRoom.pricingMode ?? "day_based") === "hourly"
+                          ? `${singleRoom.availabilityStart ?? "00:00"}–${singleRoom.availabilityEnd ?? "24:00"} · R${((singleRoom.hourlyRate ?? 0) / 100).toFixed(2)}/hr`
+                          : `Full Day R${((singleRoom.fullDayRate ?? 0) / 100).toFixed(2)} · Half Day R${((singleRoom.halfDayRate ?? 0) / 100).toFixed(2)}`}
+                      </span>
+                    </div>
+                    {!isPast && renderSingleRoomCell(singleRoom, dateStr, 48)}
+                  </div>
                 ) : (
-                  <p className="text-sm text-muted-foreground">No rooms available.</p>
+                  <div className="space-y-3">
+                    {filteredRooms.map((room) => (
+                      <div key={room._id} className="border rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="font-medium">{room.name}</h3>
+                          <span className="text-xs text-muted-foreground">
+                            {(room.pricingMode ?? "day_based") === "hourly"
+                              ? `${room.availabilityStart ?? "00:00"}–${room.availabilityEnd ?? "24:00"} · R${((room.hourlyRate ?? 0) / 100).toFixed(2)}/hr`
+                              : `Full Day R${((room.fullDayRate ?? 0) / 100).toFixed(2)} · Half Day R${((room.halfDayRate ?? 0) / 100).toFixed(2)}`}
+                          </span>
+                        </div>
+                        {!isPast &&
+                          ((room.pricingMode ?? "day_based") === "hourly"
+                            ? renderHourlyRoomDay(room, dateStr)
+                            : renderDayBasedRoomDay(room, dateStr))}
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             );
