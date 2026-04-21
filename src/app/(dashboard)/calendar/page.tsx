@@ -89,7 +89,9 @@ export default function CalendarPage() {
   const me = useQuery(api.users.currentUser);
   const { orgId, convexOrg } = useOrgData();
   const { isOwner, canManage } = useUserRole();
-  const showNames = isOwner || (convexOrg?.showBookerNames ?? false);
+  // Owners, managers, and super admins always see booker names. The
+  // `showBookerNames` setting only affects bookers.
+  const showNames = canManage || (convexOrg?.showBookerNames ?? false);
   const tc = getThemeColors(convexOrg?.calendarTheme);
 
   // Get room color by room ID — uses sortOrder/index for stable coloring
@@ -394,8 +396,8 @@ export default function CalendarPage() {
     if (!booking) return;
     const isMine = booking.userId === me?._id;
     setSelectedBookingId(bookingId);
-    if (isMine || isOwner) {
-      // Own booking or owner → detail dialog with edit + cancel
+    if (isMine || canManage) {
+      // Own booking or owner / manager / super admin → detail dialog with edit + cancel
       setEditDescription(booking.description ?? "");
       setEditNotes(booking.notes ?? "");
       if (booking.slotType === "session" && booking.startTime && booking.endTime) {
@@ -474,7 +476,7 @@ export default function CalendarPage() {
     sub?: string;
   } {
     const isMine = booking.userId === me?._id;
-    if (isOwner) {
+    if (canManage) {
       return {
         main: resolveUserName(booking.userId) || booking.userName,
         sub: booking.description ?? undefined,
@@ -482,6 +484,12 @@ export default function CalendarPage() {
     }
     if (isMine) {
       return { main: booking.description ?? "My Booking" };
+    }
+    if (showNames) {
+      return {
+        main: resolveUserName(booking.userId) || booking.userName,
+        sub: booking.description ?? undefined,
+      };
     }
     return { main: "Blocked" };
   }
