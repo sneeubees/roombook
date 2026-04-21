@@ -36,11 +36,11 @@ import type { Id } from "../../../../convex/_generated/dataModel";
 export default function BookingHistoryPage() {
   const me = useQuery(api.users.currentUser);
   const { orgId } = useOrgData();
-  const { isOwner } = useUserRole();
+  const { canManage } = useUserRole();
 
   const memberships = useQuery(
     api.organizations.listMembershipsByOrg,
-    isOwner && orgId ? { orgId } : "skip"
+    canManage && orgId ? { orgId } : "skip"
   );
 
   const [selectedUserId, setSelectedUserId] = useState<Id<"users"> | null>(null);
@@ -62,7 +62,7 @@ export default function BookingHistoryPage() {
   }
 
   // Determine which user's bookings to show
-  const targetUserId = isOwner ? (selectedUserId ?? me?._id) : me?._id;
+  const targetUserId = canManage ? (selectedUserId ?? me?._id) : me?._id;
 
   // Get all bookings for the target user
   const allBookings = useQuery(
@@ -96,7 +96,7 @@ export default function BookingHistoryPage() {
 
   const activityLogs = useQuery(
     api.activityLogs.listByOrg,
-    orgId && isOwner ? { orgId, limit: 200 } : "skip"
+    orgId && canManage ? { orgId, limit: 200 } : "skip"
   );
 
   return (
@@ -109,13 +109,13 @@ export default function BookingHistoryPage() {
       <Tabs defaultValue="bookings">
         <TabsList>
           <TabsTrigger value="bookings">Booking History</TabsTrigger>
-          {isOwner && <TabsTrigger value="activity">Activity Log</TabsTrigger>}
+          {canManage && <TabsTrigger value="activity">Activity Log</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="bookings" className="space-y-6">
 
       {/* Owner: user selector */}
-      {isOwner && memberships && memberships.length > 0 && (
+      {canManage && memberships && memberships.length > 0 && (
         <div className="max-w-xs">
           <Select
             value={selectedUserId ?? me?._id ?? ""}
@@ -231,7 +231,7 @@ export default function BookingHistoryPage() {
             <History className="h-12 w-12 text-muted-foreground/30 mb-4" />
             <CardTitle className="text-lg">No booking history</CardTitle>
             <CardDescription>
-              {isOwner
+              {canManage
                 ? "Select a user above to view their booking history."
                 : "You don't have any past bookings yet."}
             </CardDescription>
@@ -240,7 +240,7 @@ export default function BookingHistoryPage() {
       )}
         </TabsContent>
 
-        {isOwner && (
+        {canManage && (
           <TabsContent value="activity" className="space-y-4">
             <Card>
               <CardHeader>
