@@ -1070,7 +1070,7 @@ export default function CalendarPage() {
           {viewMode === "week" && (() => {
             const singleRoom = selectedRoom ? rooms?.find((r) => r._id === selectedRoom) : null;
             return (
-              <div className={cn(singleRoom ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7" : "grid grid-cols-3")}>
+              <div className="grid grid-cols-7">
                 {weekDays.map((day) => {
                   const dateStr = format(day, "yyyy-MM-dd");
                   const today = isToday(day);
