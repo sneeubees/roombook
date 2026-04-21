@@ -594,8 +594,11 @@ function WhiteLabelSection({ orgId }: { orgId?: any }) {
 
       if (data.verified) {
         await markVerified({ id: domainId as any });
-        // Provision Nginx + SSL
-        toast.success("DNS verified! Setting up SSL...");
+        toast.success("DNS verified! Provisioning SSL certificate…", {
+          description:
+            "This can take up to 30 minutes. You may briefly see a 'Not secure' warning in the browser while the certificate is being issued.",
+          duration: 10000,
+        });
         const provRes = await fetch("/api/domains/provision", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -605,7 +608,10 @@ function WhiteLabelSection({ orgId }: { orgId?: any }) {
         if (provData.success) {
           toast.success(`${domain} is live with SSL!`);
         } else {
-          toast.error("SSL setup may take a few minutes. The domain will work on HTTP in the meantime.");
+          toast.info(
+            "SSL provisioning is still in progress. The domain will work on HTTP in the meantime and on HTTPS once the certificate is issued (typically within 30 minutes).",
+            { duration: 10000 }
+          );
         }
       } else {
         toast.error(data.message || "DNS not verified yet");
@@ -720,6 +726,13 @@ function WhiteLabelSection({ orgId }: { orgId?: any }) {
                       Once it&apos;s added, click <strong>Verify DNS</strong>{" "}
                       to verify. Your white-label link will not work until
                       your DNS record is verified.
+                    </p>
+                    <p className="text-muted-foreground">
+                      After DNS is verified, an SSL certificate is issued
+                      automatically. This can take up to <strong>30 minutes</strong>
+                      {" "}— you may briefly see a &quot;Not secure&quot;
+                      warning in the browser while the certificate is being
+                      provisioned.
                     </p>
                   </div>
                 )}
