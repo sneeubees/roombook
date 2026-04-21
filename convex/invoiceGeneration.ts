@@ -56,16 +56,22 @@ export const generateInvoices = internalAction({
         byUser.set(key, existing);
       }
 
+      // Rates are VAT-inclusive. Split the total when VAT is enabled.
+      const vatEnabled = org.vatEnabled !== false;
+      const vatRate = vatEnabled ? org.vatRate : 0;
+
       // Generate invoice for each user
       let invoiceSeq = 1;
       for (const [, data] of byUser) {
         const userId = data.userId;
-        const subtotal = data.bookings.reduce(
+        const total = data.bookings.reduce(
           (sum: number, b: any) => sum + b.rateApplied,
           0
         );
-        const taxAmount = Math.round(subtotal * org.vatRate);
-        const total = subtotal + taxAmount;
+        const taxAmount = vatEnabled
+          ? Math.round(total * (vatRate / (1 + vatRate)))
+          : 0;
+        const subtotal = total - taxAmount;
 
         const invoiceNumber = `${org.invoicePrefix}-${periodEnd.getFullYear()}-${String(periodEnd.getMonth() + 1).padStart(2, "0")}-${String(invoiceSeq).padStart(3, "0")}`;
 
@@ -78,7 +84,7 @@ export const generateInvoices = internalAction({
             periodStart: periodStartStr,
             periodEnd: periodEndStr,
             subtotal,
-            taxRate: org.vatRate,
+            taxRate: vatRate,
             taxAmount,
             total,
             bookings: data.bookings.map((b: any) => {

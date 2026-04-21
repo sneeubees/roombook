@@ -119,6 +119,7 @@ export const update = mutation({
     invoicePrefix: v.optional(v.string()),
     currency: v.optional(v.string()),
     timezone: v.optional(v.string()),
+    vatEnabled: v.optional(v.boolean()),
     vatNumber: v.optional(v.string()),
     vatRate: v.optional(v.number()),
     staffLabel: v.optional(v.string()),
@@ -260,6 +261,35 @@ export const updateMemberRole = mutation({
     }
 
     await ctx.db.patch(target._id, { role: args.role });
+  },
+});
+
+// Toggle a member's "Email Monthly Invoices" preference. Owner (or super
+// admin) only; owner's own membership cannot be toggled off.
+export const setMembershipPreferences = mutation({
+  args: {
+    orgId: v.id("organizations"),
+    userId: v.id("users"),
+    receiveMonthlyInvoices: v.boolean(),
+  },
+  handler: async (ctx, args) => {
+    const actorId = await getAuthUserId(ctx);
+    if (!actorId) throw new Error("Not authenticated");
+    const actorProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", actorId))
+      .unique();
+    const actor = await getMembershipFor(ctx, args.orgId, actorId);
+    const isPrivileged =
+      actorProfile?.isSuperAdmin === true || actor?.role === "owner";
+    if (!isPrivileged) {
+      throw new Error("Only the owner can change invoice preferences");
+    }
+    const target = await getMembershipFor(ctx, args.orgId, args.userId);
+    if (!target) throw new Error("Member not found");
+    await ctx.db.patch(target._id, {
+      receiveMonthlyInvoices: args.receiveMonthlyInvoices,
+    });
   },
 });
 

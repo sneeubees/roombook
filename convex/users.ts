@@ -39,6 +39,10 @@ export async function hydrateUser(
       isProfileComplete?: boolean;
       isSuperAdmin?: boolean;
       calendarToken?: string;
+      billingCompanyName?: string;
+      billingAddress?: string;
+      billingContactNumber?: string;
+      billingVatNumber?: string;
       _creationTime: number;
     }
   | null
@@ -55,6 +59,10 @@ export async function hydrateUser(
     isProfileComplete: p?.isProfileComplete,
     isSuperAdmin: p?.isSuperAdmin,
     calendarToken: p?.calendarToken,
+    billingCompanyName: p?.billingCompanyName,
+    billingAddress: p?.billingAddress,
+    billingContactNumber: p?.billingContactNumber,
+    billingVatNumber: p?.billingVatNumber,
     _creationTime: u._creationTime,
   };
 }
@@ -129,6 +137,10 @@ export const updateProfile = mutation({
   args: {
     fullName: v.string(),
     phone: v.optional(v.string()),
+    billingCompanyName: v.optional(v.string()),
+    billingAddress: v.optional(v.string()),
+    billingContactNumber: v.optional(v.string()),
+    billingVatNumber: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -137,6 +149,10 @@ export const updateProfile = mutation({
     await ctx.db.patch(profile._id, {
       fullName: args.fullName,
       phone: args.phone,
+      billingCompanyName: args.billingCompanyName,
+      billingAddress: args.billingAddress,
+      billingContactNumber: args.billingContactNumber,
+      billingVatNumber: args.billingVatNumber,
       isProfileComplete: true,
     });
   },

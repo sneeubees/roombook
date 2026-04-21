@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -31,7 +32,7 @@ function generateToken(): string {
 }
 
 export default function InvitePage() {
-  const { orgId } = useOrgData();
+  const { orgId, convexOrg } = useOrgData();
   const router = useRouter();
   const createInvitation = useMutation(api.invitations.create);
   const orgDomains = useQuery(
@@ -39,8 +40,11 @@ export default function InvitePage() {
     orgId ? { orgId } : "skip"
   );
 
+  const invoicingOn = convexOrg?.invoicesEnabled !== false;
+
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"booker" | "manager">("booker");
+  const [receiveMonthlyInvoices, setReceiveMonthlyInvoices] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -55,6 +59,7 @@ export default function InvitePage() {
         email,
         role,
         token,
+        receiveMonthlyInvoices,
       });
 
       // Prefer a verified white-label domain so the invitee lands on the
@@ -127,6 +132,25 @@ export default function InvitePage() {
                 </SelectContent>
               </Select>
             </div>
+
+            {invoicingOn && (
+              <div className="flex items-start justify-between gap-4 rounded-md border p-3">
+                <div>
+                  <div className="text-sm font-medium">
+                    Email Monthly Invoices
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Send this member their invoice automatically each month
+                    when it is generated. You can change this later on the
+                    Team page.
+                  </p>
+                </div>
+                <Switch
+                  checked={receiveMonthlyInvoices}
+                  onCheckedChange={setReceiveMonthlyInvoices}
+                />
+              </div>
+            )}
 
             <div className="flex gap-3 pt-4">
               <Button type="submit" disabled={isSubmitting}>

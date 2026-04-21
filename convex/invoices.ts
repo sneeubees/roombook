@@ -226,6 +226,51 @@ export const getPdfUrl = query({
   },
 });
 
+// Send the latest non-cancelled invoice to one booker (or every booker who
+// has one). Ignores the "Email Monthly Invoices" opt-out — this is a manual
+// owner-initiated action.
+export const emailInvoices = action({
+  args: {
+    orgId: v.id("organizations"),
+    // If omitted, emails every booker who has a non-cancelled invoice.
+    userId: v.optional(v.id("users")),
+  },
+  handler: async (
+    ctx,
+    args
+  ): Promise<{ sent: number; skipped: number }> => {
+    const invoices: any[] = await ctx.runQuery(api.invoices.listByOrg, {
+      orgId: args.orgId,
+    });
+    const active = invoices.filter((i) => i.status !== "cancelled");
+
+    // Group by userId → pick the most recent (by periodEnd) invoice per user.
+    const latestPerUser = new Map<string, any>();
+    for (const inv of active) {
+      if (args.userId && inv.userId !== args.userId) continue;
+      const existing = latestPerUser.get(inv.userId);
+      if (!existing || inv.periodEnd > existing.periodEnd) {
+        latestPerUser.set(inv.userId, inv);
+      }
+    }
+
+    let sent = 0;
+    let skipped = 0;
+    for (const inv of latestPerUser.values()) {
+      try {
+        await ctx.runAction(internal.emailActions.sendInvoiceEmail, {
+          invoiceId: inv._id,
+        });
+        sent++;
+      } catch (err) {
+        console.error("Failed to send invoice email:", err);
+        skipped++;
+      }
+    }
+    return { sent, skipped };
+  },
+});
+
 // Manual invoice generation trigger
 export const generateNow = action({
   args: {
@@ -299,11 +344,17 @@ export const generateNow = action({
     let seq = 1;
     const pEnd = new Date(endStr);
 
+    // Rates are treated as VAT-inclusive. When VAT is enabled, split the
+    // total into subtotal + tax so the invoice shows both lines. When VAT
+    // is disabled, taxAmount = 0 and subtotal = total.
+    const vatEnabled = org.vatEnabled !== false;
+    const vatRate = vatEnabled ? org.vatRate : 0;
+
     for (const [, data] of byUser) {
       const userId = data.userId;
-      const subtotal = data.bookings.reduce((s: number, b: any) => s + b.rateApplied, 0);
-      const taxAmount = Math.round(subtotal * org.vatRate);
-      const total = subtotal + taxAmount;
+      const total = data.bookings.reduce((s: number, b: any) => s + b.rateApplied, 0);
+      const taxAmount = vatEnabled ? Math.round(total * (vatRate / (1 + vatRate))) : 0;
+      const subtotal = total - taxAmount;
       const invoiceNumber = `${org.invoicePrefix}-${pEnd.getFullYear()}-${String(pEnd.getMonth() + 1).padStart(2, "0")}-${String(seq).padStart(3, "0")}`;
 
       await ctx.runMutation(
@@ -315,7 +366,7 @@ export const generateNow = action({
           periodStart: startStr,
           periodEnd: endStr,
           subtotal,
-          taxRate: org.vatRate,
+          taxRate: vatRate,
           taxAmount,
           total,
           bookings: data.bookings.map((b: any) => {

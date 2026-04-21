@@ -41,6 +41,7 @@ export default function SettingsPage() {
   const [invoiceMode, setInvoiceMode] = useState<"auto" | "manual">("auto");
   const [invoiceDayOfMonth, setInvoiceDayOfMonth] = useState("1");
   const [invoicePrefix, setInvoicePrefix] = useState("INV");
+  const [vatEnabled, setVatEnabled] = useState(true);
   const [vatNumber, setVatNumber] = useState("");
   const [vatRate, setVatRate] = useState("15");
   const [bankName, setBankName] = useState("");
@@ -65,6 +66,7 @@ export default function SettingsPage() {
       setInvoiceMode((convexOrg.invoiceMode as "auto" | "manual") ?? "auto");
       setInvoiceDayOfMonth(String(convexOrg.invoiceDayOfMonth));
       setInvoicePrefix(convexOrg.invoicePrefix);
+      setVatEnabled(convexOrg.vatEnabled !== false);
       setVatNumber(convexOrg.vatNumber ?? "");
       setVatRate(String((convexOrg.vatRate ?? 0.15) * 100));
       setBankName(convexOrg.bankingDetails?.bankName ?? "");
@@ -127,7 +129,8 @@ export default function SettingsPage() {
         invoiceMode,
         invoiceDayOfMonth: parseInt(invoiceDayOfMonth),
         invoicePrefix,
-        vatNumber: vatNumber || undefined,
+        vatEnabled,
+        vatNumber: vatEnabled ? vatNumber || undefined : undefined,
         vatRate: parseFloat(vatRate) / 100,
         bankingDetails:
           bankName && accountNumber
@@ -473,34 +476,48 @@ export default function SettingsPage() {
         {/* Tax Settings */}
         <Card>
           <CardHeader>
-            <CardTitle>Tax Settings</CardTitle>
-            <CardDescription>
-              VAT registration and rate configuration.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="vatNumber">VAT Number</Label>
-                <Input
-                  id="vatNumber"
-                  value={vatNumber}
-                  onChange={(e) => setVatNumber(e.target.value)}
-                  placeholder="e.g., 4123456789"
-                />
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Tax Settings</CardTitle>
+                <CardDescription>
+                  When enabled, all room rates are treated as VAT-inclusive and
+                  invoices split out the VAT line. When disabled, invoices show
+                  no tax information.
+                </CardDescription>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="vatRate">VAT Rate (%)</Label>
-                <Input
-                  id="vatRate"
-                  type="number"
-                  step="0.1"
-                  value={vatRate}
-                  onChange={(e) => setVatRate(e.target.value)}
-                />
-              </div>
+              <Switch checked={vatEnabled} onCheckedChange={setVatEnabled} />
             </div>
-          </CardContent>
+          </CardHeader>
+          {vatEnabled && (
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="vatNumber">VAT Number</Label>
+                  <Input
+                    id="vatNumber"
+                    value={vatNumber}
+                    onChange={(e) => setVatNumber(e.target.value)}
+                    placeholder="e.g., 4123456789"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="vatRate">VAT Rate (%)</Label>
+                  <Input
+                    id="vatRate"
+                    type="number"
+                    step="0.1"
+                    value={vatRate}
+                    onChange={(e) => setVatRate(e.target.value)}
+                  />
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Room rates you set are already VAT-inclusive. For a R 100
+                room at 15% VAT, the invoice will show R 86.96 subtotal +
+                R 13.04 VAT = R 100.00 total.
+              </p>
+            </CardContent>
+          )}
         </Card>
 
         {/* Banking Details */}

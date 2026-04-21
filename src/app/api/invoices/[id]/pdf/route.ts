@@ -43,6 +43,15 @@ export async function GET(
       return new Response("Organization not found", { status: 404 });
     }
 
+    const vatEnabled = orgData.vatEnabled !== false;
+    const u = userData as
+      | (typeof userData & {
+          billingCompanyName?: string;
+          billingAddress?: string;
+          billingContactNumber?: string;
+          billingVatNumber?: string;
+        })
+      | null;
     const invoiceData: InvoiceData = {
       orgName: orgData.name,
       orgAddress: orgData.address,
@@ -53,9 +62,13 @@ export async function GET(
       accountNumber: orgData.bankingDetails?.accountNumber,
       branchCode: orgData.bankingDetails?.branchCode,
       accountType: orgData.bankingDetails?.accountType,
-      customerName: userData?.fullName ?? "Unknown",
-      customerEmail: userData?.email ?? "",
-      customerPhone: userData?.phone,
+      customerName: u?.fullName ?? "Unknown",
+      customerEmail: u?.email ?? "",
+      customerPhone: u?.billingContactNumber ?? u?.phone,
+      customerCompanyName: u?.billingCompanyName,
+      customerBillingAddress: u?.billingAddress,
+      customerVatNumber: u?.billingVatNumber,
+      vatEnabled,
       invoiceNumber: invoice.invoiceNumber,
       invoiceDate: format(new Date(), "d MMMM yyyy"),
       periodStart: format(new Date(invoice.periodStart), "d MMM yyyy"),

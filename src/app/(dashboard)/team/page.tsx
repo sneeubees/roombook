@@ -3,6 +3,7 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
+import { useUserRole } from "@/hooks/use-user-role";
 import Link from "next/link";
 import { useState, useMemo } from "react";
 import {
@@ -14,8 +15,14 @@ import {
 } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
 import {
   Table,
   TableBody,
@@ -38,7 +45,8 @@ import { format } from "date-fns";
 import type { Id } from "../../../../convex/_generated/dataModel";
 
 export default function TeamPage() {
-  const { orgId } = useOrgData();
+  const { orgId, convexOrg } = useOrgData();
+  const { isOwner } = useUserRole();
   const me = useQuery(api.users.currentUser);
 
   const memberships = useQuery(
@@ -51,8 +59,13 @@ export default function TeamPage() {
   );
   const revokeInvitation = useMutation(api.invitations.revoke);
   const removeMember = useMutation(api.organizations.removeMember);
+  const updateMemberRole = useMutation(api.organizations.updateMemberRole);
+  const setMembershipPrefs = useMutation(
+    api.organizations.setMembershipPreferences
+  );
 
-  // Query Convex users for name resolution
+  const invoicingOn = convexOrg?.invoicesEnabled !== false;
+
   const memberUserIds = useMemo(
     () => (memberships ?? []).map((m) => m.userId),
     [memberships]
@@ -67,8 +80,6 @@ export default function TeamPage() {
   }
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Remove member dialog
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [removeUserId, setRemoveUserId] = useState<Id<"users"> | null>(null);
   const [removeMemberName, setRemoveMemberName] = useState("");
@@ -99,7 +110,6 @@ export default function TeamPage() {
         </Link>
       </div>
 
-      {/* Active Members */}
       <Card>
         <CardHeader>
           <CardTitle>Members</CardTitle>
@@ -114,6 +124,11 @@ export default function TeamPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Role</TableHead>
+                {invoicingOn && (
+                  <TableHead className="text-center">
+                    Email Monthly Invoices
+                  </TableHead>
+                )}
                 <TableHead>Joined</TableHead>
                 <TableHead></TableHead>
               </TableRow>
@@ -126,7 +141,13 @@ export default function TeamPage() {
                 const isMe = membership.userId === me?._id;
                 const role = membership.role;
                 const roleLabel =
-                  role === "owner" ? "Owner" : role === "manager" ? "Manager" : "Booker";
+                  role === "owner"
+                    ? "Owner"
+                    : role === "manager"
+                      ? "Manager"
+                      : "Booker";
+                const receiveInvoices =
+                  membership.receiveMonthlyInvoices !== false;
 
                 return (
                   <TableRow key={membership._id}>
@@ -140,37 +161,97 @@ export default function TeamPage() {
                     </TableCell>
                     <TableCell>{email}</TableCell>
                     <TableCell>
-                      <Badge
-                        variant={
-                          role === "owner"
-                            ? "default"
-                            : role === "manager"
-                              ? "outline"
-                              : "secondary"
-                        }
-                      >
-                        {roleLabel}
-                      </Badge>
+                      {isOwner && role !== "owner" && !isMe ? (
+                        <Select
+                          value={role}
+                          onValueChange={async (v) => {
+                            if (!v || v === role || !orgId) return;
+                            try {
+                              await updateMemberRole({
+                                orgId,
+                                userId: membership.userId,
+                                role: v as "manager" | "booker",
+                              });
+                              toast.success(
+                                `${displayName} is now a ${v}`
+                              );
+                            } catch (err) {
+                              toast.error(
+                                err instanceof Error
+                                  ? err.message
+                                  : "Failed to update role"
+                              );
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="w-[120px] h-7">
+                            <SelectValue>{roleLabel}</SelectValue>
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="manager">Manager</SelectItem>
+                            <SelectItem value="booker">Booker</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge
+                          variant={
+                            role === "owner"
+                              ? "default"
+                              : role === "manager"
+                                ? "outline"
+                                : "secondary"
+                          }
+                        >
+                          {roleLabel}
+                        </Badge>
+                      )}
                     </TableCell>
+                    {invoicingOn && (
+                      <TableCell className="text-center">
+                        <Switch
+                          checked={receiveInvoices}
+                          disabled={!isOwner || role === "owner"}
+                          onCheckedChange={async (checked) => {
+                            if (!orgId) return;
+                            try {
+                              await setMembershipPrefs({
+                                orgId,
+                                userId: membership.userId,
+                                receiveMonthlyInvoices: checked,
+                              });
+                              toast.success(
+                                checked
+                                  ? `${displayName} will receive monthly invoices`
+                                  : `${displayName} will not receive monthly invoices`
+                              );
+                            } catch (err) {
+                              toast.error(
+                                err instanceof Error
+                                  ? err.message
+                                  : "Failed"
+                              );
+                            }
+                          }}
+                        />
+                      </TableCell>
+                    )}
                     <TableCell className="text-muted-foreground">
                       {format(new Date(membership._creationTime), "d MMM yyyy")}
                     </TableCell>
                     <TableCell>
-                      {!isMe && role !== "owner" && (
-                        <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-destructive hover:text-destructive"
-                            onClick={() => {
-                              setRemoveUserId(membership.userId);
-                              setRemoveMemberName(displayName);
-                              setRemoveDialogOpen(true);
-                            }}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
+                      {!isMe && role !== "owner" && isOwner && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => {
+                            setRemoveUserId(membership.userId);
+                            setRemoveMemberName(displayName);
+                            setRemoveDialogOpen(true);
+                          }}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
                       )}
                     </TableCell>
                   </TableRow>
@@ -181,7 +262,6 @@ export default function TeamPage() {
         </CardContent>
       </Card>
 
-      {/* Pending Invitations */}
       {invitations &&
         invitations.filter((i) => i.status === "pending").length > 0 && (
           <Card>
@@ -215,10 +295,7 @@ export default function TeamPage() {
                           )}
                         </TableCell>
                         <TableCell className="text-muted-foreground">
-                          {format(
-                            new Date(invitation.expiresAt),
-                            "d MMM yyyy"
-                          )}
+                          {format(new Date(invitation.expiresAt), "d MMM yyyy")}
                         </TableCell>
                         <TableCell>
                           <Button
@@ -240,15 +317,14 @@ export default function TeamPage() {
           </Card>
         )}
 
-      {/* Remove Member Confirmation */}
       <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Remove Member</DialogTitle>
             <DialogDescription>
               Are you sure you want to remove{" "}
-              <strong>{removeMemberName}</strong> from the team? They will
-              lose all access to the platform immediately.
+              <strong>{removeMemberName}</strong> from the team? They will lose
+              all access to the platform immediately.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

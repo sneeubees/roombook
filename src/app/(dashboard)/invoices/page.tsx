@@ -2,6 +2,7 @@
 
 import { useQuery, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
+import type { Id } from "../../../../convex/_generated/dataModel";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useMemo } from "react";
@@ -30,7 +31,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileDown, FilePlus } from "lucide-react";
+import { FileDown, FilePlus, Mail } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { toast } from "sonner";
 import { useState } from "react";
 import { format } from "date-fns";
@@ -58,6 +66,10 @@ export default function InvoicesPage() {
 
   const generateInvoices = useAction(api.invoices.generateNow);
   const regenerateForPeriod = useAction(api.invoices.regenerateForPeriod);
+  const emailInvoices = useAction(api.invoices.emailInvoices);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [emailTargetUserId, setEmailTargetUserId] = useState<string>("all");
+  const [isEmailing, setIsEmailing] = useState(false);
 
   // Strip Convex's "[CONVEX X(foo)] [Request ID: ...] Server Error Uncaught
   // Error: ..." prefix so toasts show the real message only.
@@ -112,11 +124,21 @@ export default function InvoicesPage() {
             onClick={() => setShowRunsDialog(true)}
           >
             <FilePlus className="h-4 w-4 mr-2" />
-            {isGenerating
-              ? "Generating..."
-              : invoiceMode === "auto"
-                ? "Generate / Regenerate Invoices"
-                : "Generate / Regenerate Invoices"}
+            {isGenerating ? "Generating..." : "Generate / Regenerate Invoices"}
+          </Button>
+        )}
+        {isOwner && orgId && (
+          <Button
+            variant="outline"
+            className="ml-2"
+            disabled={isEmailing}
+            onClick={() => {
+              setEmailTargetUserId("all");
+              setShowEmailDialog(true);
+            }}
+          >
+            <Mail className="h-4 w-4 mr-2" />
+            Email Invoices
           </Button>
         )}
       </div>
@@ -313,6 +335,76 @@ export default function InvoicesPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowRunsDialog(false)}>
               Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Invoices Dialog */}
+      <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Email invoices</DialogTitle>
+            <DialogDescription>
+              Send the most recent invoice to the selected booker. This ignores
+              the &ldquo;Email Monthly Invoices&rdquo; preference — use this to
+              resend on demand.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Who to email</label>
+            <Select
+              value={emailTargetUserId}
+              onValueChange={(v) => v && setEmailTargetUserId(v)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {bookerIds.map((uid) => (
+                  <SelectItem key={uid} value={uid}>
+                    {resolveUserName(uid)}
+                  </SelectItem>
+                ))}
+                <SelectItem value="all">All bookers</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEmailDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={isEmailing}
+              onClick={async () => {
+                if (!orgId) return;
+                setIsEmailing(true);
+                try {
+                  const result = await emailInvoices({
+                    orgId,
+                    userId:
+                      emailTargetUserId === "all"
+                        ? undefined
+                        : (emailTargetUserId as Id<"users">),
+                  });
+                  toast.success(
+                    `Sent ${result.sent} invoice email${result.sent === 1 ? "" : "s"}${
+                      result.skipped ? ` · ${result.skipped} failed` : ""
+                    }`
+                  );
+                  setShowEmailDialog(false);
+                } catch (err) {
+                  toast.error("Could not send invoices", {
+                    description: cleanErrorMessage(
+                      err instanceof Error ? err.message : ""
+                    ) || "Unknown error",
+                  });
+                } finally {
+                  setIsEmailing(false);
+                }
+              }}
+            >
+              {isEmailing ? "Sending…" : "Send"}
             </Button>
           </DialogFooter>
         </DialogContent>

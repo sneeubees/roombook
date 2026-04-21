@@ -36,12 +36,28 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
   const [phone, setPhone] = useState("");
   const [orgName, setOrgName] = useState("");
   const [orgLogoUrl, setOrgLogoUrl] = useState("");
+  const [billingCompanyName, setBillingCompanyName] = useState("");
+  const [billingAddress, setBillingAddress] = useState("");
+  const [billingContactNumber, setBillingContactNumber] = useState("");
+  const [billingVatNumber, setBillingVatNumber] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const invoicingOn = convexOrg?.invoicesEnabled !== false;
 
   useEffect(() => {
     if (me) {
       setFullName(me.fullName || "");
       setPhone(me.phone || "");
+      const bm = me as unknown as {
+        billingCompanyName?: string;
+        billingAddress?: string;
+        billingContactNumber?: string;
+        billingVatNumber?: string;
+      };
+      setBillingCompanyName(bm.billingCompanyName || "");
+      setBillingAddress(bm.billingAddress || "");
+      setBillingContactNumber(bm.billingContactNumber || "");
+      setBillingVatNumber(bm.billingVatNumber || "");
     }
   }, [me]);
 
@@ -59,6 +75,18 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
       await updateProfile({
         fullName: fullName.trim(),
         phone: phone.trim() || undefined,
+        billingCompanyName: invoicingOn
+          ? billingCompanyName.trim() || undefined
+          : undefined,
+        billingAddress: invoicingOn
+          ? billingAddress.trim() || undefined
+          : undefined,
+        billingContactNumber: invoicingOn
+          ? billingContactNumber.trim() || undefined
+          : undefined,
+        billingVatNumber: invoicingOn
+          ? billingVatNumber.trim() || undefined
+          : undefined,
       });
 
       // Owner can also update org name and logo
@@ -125,6 +153,59 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
               Email is managed by your sign-in provider.
             </p>
           </div>
+
+          {invoicingOn && (
+            <>
+              <Separator />
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">
+                  Invoice details
+                </Label>
+                <p className="text-xs text-muted-foreground">
+                  Shown on invoices addressed to you. Leave blank to use your
+                  name.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="billing-company">Company name</Label>
+                <Input
+                  id="billing-company"
+                  value={billingCompanyName}
+                  onChange={(e) => setBillingCompanyName(e.target.value)}
+                  placeholder="Leave blank to use your name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="billing-address">Address</Label>
+                <Input
+                  id="billing-address"
+                  value={billingAddress}
+                  onChange={(e) => setBillingAddress(e.target.value)}
+                  placeholder="Street, City, Postcode"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label htmlFor="billing-phone">Contact number</Label>
+                  <Input
+                    id="billing-phone"
+                    value={billingContactNumber}
+                    onChange={(e) => setBillingContactNumber(e.target.value)}
+                    placeholder="e.g., 082 123 4567"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="billing-vat">VAT number</Label>
+                  <Input
+                    id="billing-vat"
+                    value={billingVatNumber}
+                    onChange={(e) => setBillingVatNumber(e.target.value)}
+                    placeholder="Optional"
+                  />
+                </div>
+              </div>
+            </>
+          )}
 
           {isOwner && (
             <>

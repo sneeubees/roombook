@@ -194,36 +194,33 @@ function formatSlot(
 }
 
 export interface InvoiceData {
-  // Organization
   orgName: string;
   orgAddress?: string;
   orgPhone?: string;
   orgEmail?: string;
   orgVatNumber?: string;
-  // Banking
   bankName?: string;
   accountNumber?: string;
   branchCode?: string;
   accountType?: string;
-  // Customer
   customerName: string;
   customerEmail: string;
   customerPhone?: string;
-  // Invoice
+  customerCompanyName?: string;
+  customerBillingAddress?: string;
+  customerVatNumber?: string;
   invoiceNumber: string;
   invoiceDate: string;
   periodStart: string;
   periodEnd: string;
   dueDate?: string;
   status: string;
-  // Totals
   subtotal: number;
   taxRate: number;
   taxAmount: number;
   total: number;
-  // White label
+  vatEnabled?: boolean;
   isWhiteLabel?: boolean;
-  // Line items
   lineItems: Array<{
     date: string;
     roomName: string;
@@ -248,7 +245,7 @@ export function InvoiceDocument({ data }: { data: InvoiceData }) {
               {data.orgAddress && <Text>{data.orgAddress}</Text>}
               {data.orgPhone && <Text>Tel: {data.orgPhone}</Text>}
               {data.orgEmail && <Text>{data.orgEmail}</Text>}
-              {data.orgVatNumber && (
+              {data.vatEnabled !== false && data.orgVatNumber && (
                 <Text>VAT No: {data.orgVatNumber}</Text>
               )}
             </View>
@@ -286,10 +283,21 @@ export function InvoiceDocument({ data }: { data: InvoiceData }) {
         {/* Bill To */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Bill To</Text>
-          <Text style={styles.customerRow}>{data.customerName}</Text>
+          <Text style={styles.customerRow}>
+            {data.customerCompanyName || data.customerName}
+          </Text>
+          {data.customerCompanyName && (
+            <Text style={styles.customerRow}>{data.customerName}</Text>
+          )}
+          {data.customerBillingAddress && (
+            <Text style={styles.customerRow}>{data.customerBillingAddress}</Text>
+          )}
           <Text style={styles.customerRow}>{data.customerEmail}</Text>
           {data.customerPhone && (
             <Text style={styles.customerRow}>{data.customerPhone}</Text>
+          )}
+          {data.customerVatNumber && (
+            <Text style={styles.customerRow}>VAT No: {data.customerVatNumber}</Text>
           )}
         </View>
 
@@ -335,20 +343,24 @@ export function InvoiceDocument({ data }: { data: InvoiceData }) {
 
         {/* Totals */}
         <View style={styles.totals}>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal</Text>
-            <Text style={styles.totalValue}>
-              {formatCurrency(data.subtotal)}
-            </Text>
-          </View>
-          <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>
-              VAT ({(data.taxRate * 100).toFixed(0)}%)
-            </Text>
-            <Text style={styles.totalValue}>
-              {formatCurrency(data.taxAmount)}
-            </Text>
-          </View>
+          {data.vatEnabled !== false && (
+            <>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Subtotal</Text>
+                <Text style={styles.totalValue}>
+                  {formatCurrency(data.subtotal)}
+                </Text>
+              </View>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>
+                  VAT ({(data.taxRate * 100).toFixed(0)}%)
+                </Text>
+                <Text style={styles.totalValue}>
+                  {formatCurrency(data.taxAmount)}
+                </Text>
+              </View>
+            </>
+          )}
           <View style={styles.totalRow}>
             <Text style={[styles.totalLabel, styles.totalFinal]}>Total</Text>
             <Text style={[styles.totalValue, styles.totalFinal]}>

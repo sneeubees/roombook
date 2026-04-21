@@ -120,15 +120,19 @@ export default function InvoiceDetailPage() {
           <Separator className="my-4" />
 
           <div className="space-y-2 text-sm">
-            <div className="flex justify-between">
-              <span>Subtotal</span>
-              <span>R{(invoice.subtotal / 100).toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between text-muted-foreground">
-              <span>VAT ({(invoice.taxRate * 100).toFixed(0)}%)</span>
-              <span>R{(invoice.taxAmount / 100).toFixed(2)}</span>
-            </div>
-            <Separator />
+            {invoice.taxRate > 0 && invoice.taxAmount > 0 && (
+              <>
+                <div className="flex justify-between">
+                  <span>Subtotal</span>
+                  <span>R{(invoice.subtotal / 100).toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-muted-foreground">
+                  <span>VAT ({(invoice.taxRate * 100).toFixed(0)}%)</span>
+                  <span>R{(invoice.taxAmount / 100).toFixed(2)}</span>
+                </div>
+                <Separator />
+              </>
+            )}
             <div className="flex justify-between font-bold text-base">
               <span>Total</span>
               <span>R{(invoice.total / 100).toFixed(2)}</span>

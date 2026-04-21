@@ -29,6 +29,7 @@ export const create = mutation({
     email: v.string(),
     role: v.union(v.literal("manager"), v.literal("booker")),
     token: v.string(),
+    receiveMonthlyInvoices: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const invitedBy = await getAuthUserId(ctx);
@@ -56,6 +57,7 @@ export const create = mutation({
       token: args.token,
       status: "pending",
       expiresAt,
+      receiveMonthlyInvoices: args.receiveMonthlyInvoices,
     });
 
     const actor = await ctx.db.get(invitedBy);
@@ -109,6 +111,7 @@ export const accept = mutation({
         orgId: invitation.orgId,
         userId,
         role: invitation.role,
+        receiveMonthlyInvoices: invitation.receiveMonthlyInvoices,
       });
     }
 

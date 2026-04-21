@@ -16,6 +16,11 @@ export default defineSchema({
     isProfileComplete: v.optional(v.boolean()),
     isSuperAdmin: v.optional(v.boolean()),
     calendarToken: v.optional(v.string()),
+    // Invoice billing details, used when the booker's org has invoicing on.
+    billingCompanyName: v.optional(v.string()),
+    billingAddress: v.optional(v.string()),
+    billingContactNumber: v.optional(v.string()),
+    billingVatNumber: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_calendarToken", ["calendarToken"]),
@@ -34,6 +39,7 @@ export default defineSchema({
     invoicePrefix: v.string(),
     currency: v.string(),
     timezone: v.string(),
+    vatEnabled: v.optional(v.boolean()), // default true
     vatNumber: v.optional(v.string()),
     vatRate: v.number(),
     bankingDetails: v.optional(
@@ -72,6 +78,9 @@ export default defineSchema({
     orgId: v.id("organizations"),
     userId: v.id("users"),
     role: v.union(v.literal("owner"), v.literal("manager"), v.literal("booker")),
+    // If false, this member will not receive automatic monthly invoice emails.
+    // Defaults to true if omitted.
+    receiveMonthlyInvoices: v.optional(v.boolean()),
   })
     .index("by_org", ["orgId"])
     .index("by_user", ["userId"])
@@ -251,6 +260,8 @@ export default defineSchema({
     ),
     expiresAt: v.number(),
     acceptedAt: v.optional(v.number()),
+    // Preference carried from invite → applied to membership at accept time.
+    receiveMonthlyInvoices: v.optional(v.boolean()),
   })
     .index("by_token", ["token"])
     .index("by_org", ["orgId"])

@@ -142,10 +142,19 @@ export const createInvoiceWithLineItems = internalMutation({
       emailSent: false,
     });
 
-    // Schedule invoice email
-    await ctx.scheduler.runAfter(0, internal.emailActions.sendInvoiceEmail, {
-      invoiceId,
-    });
+    // Schedule invoice email — only if the booker hasn't opted out of
+    // automatic monthly invoice emails.
+    const membership = await ctx.db
+      .query("memberships")
+      .withIndex("by_org_user", (q) =>
+        q.eq("orgId", args.orgId).eq("userId", args.userId)
+      )
+      .unique();
+    if (membership?.receiveMonthlyInvoices !== false) {
+      await ctx.scheduler.runAfter(0, internal.emailActions.sendInvoiceEmail, {
+        invoiceId,
+      });
+    }
 
     return invoiceId;
   },
