@@ -991,6 +991,11 @@ export default function CalendarPage() {
                 variant={selectedRoom === room._id ? "default" : "outline"}
                 size="sm"
                 onClick={() => setSelectedRoom(selectedRoom === room._id ? null : room._id)}
+                className={cn(
+                  selectedRoom !== room._id && rc.bgLight,
+                  selectedRoom !== room._id && rc.text,
+                  selectedRoom !== room._id && "hover:opacity-80"
+                )}
               >
                 <span className={cn("inline-block h-2 w-2 rounded-full mr-1.5", rc.bgMine)} />
                 {room.name}
