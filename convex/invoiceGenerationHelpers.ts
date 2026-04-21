@@ -32,8 +32,7 @@ export const getBillableBookings = internalQuery({
       (b) =>
         b.date >= args.startDate &&
         b.date <= args.endDate &&
-        b.isBillable &&
-        !b.excludeFromInvoice
+        b.isBillable
     );
 
     // Enrich with room names

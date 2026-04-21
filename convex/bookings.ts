@@ -706,30 +706,46 @@ export const editDetails = mutation({
   },
 });
 
-export const setExcludeFromInvoice = mutation({
+/**
+ * Override the rate on a single booking. Owners/managers/super admins can
+ * set any amount (in cents), including 0 to make a booking free. Used as
+ * the manual billing knob instead of a separate "exclude from invoice" flag.
+ */
+export const setRate = mutation({
   args: {
     id: v.id("bookings"),
-    exclude: v.boolean(),
+    rateApplied: v.number(),
   },
   handler: async (ctx, args) => {
     const actorId = await getAuthUserId(ctx);
     if (!actorId) throw new Error("Not authenticated");
+    if (args.rateApplied < 0) throw new Error("Rate cannot be negative");
+    if (!Number.isFinite(args.rateApplied)) throw new Error("Invalid rate");
 
     const booking = await ctx.db.get(args.id);
     if (!booking) throw new Error("Booking not found");
 
-    const lineItems = await ctx.db.query("invoiceLineItems").collect();
-    const matching = lineItems.filter((li) => li.bookingId === args.id);
-    let wasInvoiced = false;
-    for (const li of matching) {
-      const inv = await ctx.db.get(li.invoiceId);
-      if (inv && inv.status !== "cancelled") {
-        wasInvoiced = true;
-        break;
-      }
+    // Only owner / manager / super admin of the booking's org can override.
+    const actorMembership = await ctx.db
+      .query("memberships")
+      .withIndex("by_org_user", (q) =>
+        q.eq("orgId", booking.orgId).eq("userId", actorId)
+      )
+      .unique();
+    const actorProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", actorId))
+      .unique();
+    const isPrivileged =
+      actorProfile?.isSuperAdmin === true ||
+      actorMembership?.role === "owner" ||
+      actorMembership?.role === "manager";
+    if (!isPrivileged) {
+      throw new Error("Only owners, managers, or super admins can override rates");
     }
 
-    await ctx.db.patch(args.id, { excludeFromInvoice: args.exclude });
+    const previous = booking.rateApplied;
+    await ctx.db.patch(args.id, { rateApplied: args.rateApplied });
 
     const actor = await ctx.db.get(actorId);
     await ctx.db.insert("activityLogs", {
@@ -739,35 +755,14 @@ export const setExcludeFromInvoice = mutation({
         (actor as { name?: string } | null)?.name ??
         (actor as { email?: string } | null)?.email ??
         "Unknown",
-      actorRole: actorId === booking.userId ? "booker" : "owner_or_manager",
-      action: args.exclude ? "booking_invoice_excluded" : "booking_invoice_included",
+      actorRole: actorMembership?.role ?? "super_admin",
+      action: "booking_rate_overridden",
       targetType: "booking",
       targetId: args.id,
       targetName: `Booking on ${booking.date}`,
-      details: { wasInvoiced },
+      details: { previous, next: args.rateApplied },
     });
 
-    return { wasInvoiced };
-  },
-});
-
-export const getInvoicedBookingIds = query({
-  args: { orgId: v.id("organizations") },
-  handler: async (ctx, args) => {
-    const invoices = await ctx.db
-      .query("invoices")
-      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
-      .collect();
-    const activeInvoiceIds = new Set(
-      invoices.filter((i) => i.status !== "cancelled").map((i) => i._id)
-    );
-    const lineItems = await ctx.db.query("invoiceLineItems").collect();
-    const bookingIds = new Set<string>();
-    for (const li of lineItems) {
-      if (activeInvoiceIds.has(li.invoiceId)) {
-        bookingIds.add(li.bookingId);
-      }
-    }
-    return Array.from(bookingIds);
+    return { rateApplied: args.rateApplied };
   },
 });
