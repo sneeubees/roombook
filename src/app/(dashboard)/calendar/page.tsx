@@ -386,7 +386,7 @@ export default function CalendarPage() {
     if (!orgId || !me?._id) return;
     try {
       await joinWaitlist({ orgId, roomId, date, slotType, startTime, endTime });
-      toast.success("Added to waitlist! You'll be notified if it opens up.");
+      toast.success("You'll be notified if this slot is cancelled.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to join waitlist");
     }
@@ -1610,7 +1610,7 @@ export default function CalendarPage() {
                       setShowBookedSlotDialog(false);
                     }}
                   >
-                    Join Waitlist
+                    Notify when cancelled
                   </Button>
                   {isOwner && (
                     <Button
