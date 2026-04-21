@@ -1038,7 +1038,7 @@ export default function CalendarPage() {
                           singleRoom && getColorForRoom(singleRoom._id).borderSoft,
                           !inMonth && "bg-muted/30",
                           isPast && "opacity-50",
-                          today && singleRoom && getColorForRoom(singleRoom._id).bgTint
+                          today && (singleRoom ? getColorForRoom(singleRoom._id).bgTint : "bg-primary/10")
                         )}
                       >
                         <div
