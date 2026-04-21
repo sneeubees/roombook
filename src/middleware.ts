@@ -38,6 +38,10 @@ export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
     !hostname.includes("localhost") &&
     !MAIN_DOMAINS.includes(hostname);
   if (isCustomDomain) {
+    // White-label tenants don't offer self-sign-up. Bounce /sign-up to sign-in.
+    if (request.nextUrl.pathname.startsWith("/sign-up")) {
+      return nextjsMiddlewareRedirect(request, "/sign-in");
+    }
     const response = NextResponse.next();
     response.cookies.set("custom-domain", hostname, {
       path: "/",

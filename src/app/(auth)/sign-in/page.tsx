@@ -4,6 +4,7 @@ import { useAuthActions } from "@convex-dev/auth/react";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useCustomDomain } from "@/hooks/use-custom-domain";
 import {
   Card,
   CardContent,
@@ -21,6 +22,7 @@ export default function SignInPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const redirectTo = searchParams.get("redirect") ?? "/dashboard";
+  const { isCustomDomain } = useCustomDomain();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -85,12 +87,14 @@ export default function SignInPage() {
             <Button type="submit" disabled={isSubmitting} className="w-full">
               {isSubmitting ? "Signing in…" : "Sign in"}
             </Button>
-            <p className="text-sm text-muted-foreground text-center">
-              Don&apos;t have an account?{" "}
-              <Link href="/sign-up" className="underline">
-                Sign up
-              </Link>
-            </p>
+            {!isCustomDomain && (
+              <p className="text-sm text-muted-foreground text-center">
+                Don&apos;t have an account?{" "}
+                <Link href="/sign-up" className="underline">
+                  Sign up
+                </Link>
+              </p>
+            )}
           </form>
         </CardContent>
       </Card>

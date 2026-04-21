@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useConvexAuth } from "convex/react";
+import { useConvexAuth, useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { buttonVariants } from "@/components/ui/button";
+import { useCustomDomain } from "@/hooks/use-custom-domain";
 import {
   CalendarDays,
   DoorOpen,
@@ -53,10 +55,66 @@ const features = [
 
 export default function LandingPage() {
   const { isAuthenticated } = useConvexAuth();
+  const { isCustomDomain, customDomain } = useCustomDomain();
 
+  // Look up the org attached to this custom domain (if any) so we can show
+  // its name on the landing.
+  const orgLookup = useQuery(
+    api.domains.getByDomain,
+    isCustomDomain && customDomain ? { domain: customDomain } : "skip"
+  );
+
+  // White-label landing: no RoomBook branding, no sign-up, just Sign In.
+  if (isCustomDomain) {
+    const orgName = orgLookup?.org?.name ?? "";
+    const logoUrl = orgLookup?.org?.logoUrl;
+    return (
+      <div className="flex flex-col min-h-screen bg-background">
+        <main className="flex-1 flex items-center justify-center p-6">
+          <div className="text-center space-y-6 max-w-md">
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt={orgName || "Logo"}
+                className="h-16 w-16 mx-auto rounded object-contain"
+              />
+            ) : (
+              <DoorOpen className="h-16 w-16 mx-auto text-primary" />
+            )}
+            {orgName && (
+              <div className="text-sm uppercase tracking-widest text-muted-foreground">
+                {orgName}
+              </div>
+            )}
+            <h1 className="text-4xl font-bold tracking-tight sm:text-5xl">
+              Book Your Room
+            </h1>
+            <div className="pt-4">
+              {isAuthenticated ? (
+                <Link
+                  href="/dashboard"
+                  className={buttonVariants({ size: "lg" })}
+                >
+                  Open dashboard
+                </Link>
+              ) : (
+                <Link
+                  href="/sign-in"
+                  className={buttonVariants({ size: "lg" })}
+                >
+                  Sign in
+                </Link>
+              )}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Default RoomBook landing (main domain only).
   return (
     <div className="flex flex-col min-h-screen">
-      {/* Header */}
       <header className="border-b">
         <div className="container mx-auto flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
@@ -70,7 +128,10 @@ export default function LandingPage() {
               </Link>
             ) : (
               <>
-                <Link href="/sign-in" className={buttonVariants({ variant: "ghost" })}>
+                <Link
+                  href="/sign-in"
+                  className={buttonVariants({ variant: "ghost" })}
+                >
                   Sign In
                 </Link>
                 <Link href="/sign-up" className={buttonVariants()}>
@@ -82,7 +143,6 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* Hero */}
       <section className="flex-1 flex items-center">
         <div className="container mx-auto px-6 py-20 text-center">
           <h1 className="text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
@@ -100,14 +160,16 @@ export default function LandingPage() {
             <Link href="/sign-up" className={buttonVariants({ size: "lg" })}>
               Get Started
             </Link>
-            <Link href="/sign-in" className={buttonVariants({ size: "lg", variant: "outline" })}>
+            <Link
+              href="/sign-in"
+              className={buttonVariants({ size: "lg", variant: "outline" })}
+            >
               Sign In
             </Link>
           </div>
         </div>
       </section>
 
-      {/* Features */}
       <section className="border-t bg-muted/30 py-20">
         <div className="container mx-auto px-6">
           <h2 className="text-3xl font-bold text-center mb-12">
@@ -125,7 +187,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
       <footer className="border-t py-8">
         <div className="container mx-auto px-6 text-center text-sm text-muted-foreground">
           &copy; {new Date().getFullYear()} RoomBook. All rights reserved.
