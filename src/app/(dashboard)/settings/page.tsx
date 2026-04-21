@@ -74,7 +74,16 @@ export default function SettingsPage() {
       setBranchCode(convexOrg.bankingDetails?.branchCode ?? "");
       setAccountType(convexOrg.bankingDetails?.accountType ?? "");
       const label = convexOrg.staffLabel ?? "Booker";
-      const presets = ["Booker", "Therapist", "Physician", "Doctor", "Stylist"];
+      const presets = [
+        "Booker",
+        "Therapist",
+        "Physician",
+        "Doctor",
+        "Stylist",
+        "Trainer",
+        "Instructor",
+        "Executive",
+      ];
       if (presets.includes(label)) {
         setStaffLabel(label);
         setCustomStaffLabel("");
@@ -321,6 +330,9 @@ export default function SettingsPage() {
                   <SelectItem value="Physician">Physician</SelectItem>
                   <SelectItem value="Doctor">Doctor</SelectItem>
                   <SelectItem value="Stylist">Stylist</SelectItem>
+                  <SelectItem value="Trainer">Trainer</SelectItem>
+                  <SelectItem value="Instructor">Instructor</SelectItem>
+                  <SelectItem value="Executive">Executive</SelectItem>
                   <SelectItem value="Other">Other (custom)</SelectItem>
                 </SelectContent>
               </Select>
