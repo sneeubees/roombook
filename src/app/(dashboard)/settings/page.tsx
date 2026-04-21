@@ -312,10 +312,9 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label>Staff Title</Label>
+              <Label>Booker Title</Label>
               <p className="text-xs text-muted-foreground">
-                What do you call your staff members? This label is used
-                throughout the app.
+                What title or term do you use for users who make bookings?
               </p>
               <Select
                 value={staffLabel}
