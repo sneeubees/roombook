@@ -698,10 +698,13 @@ function WhiteLabelSection({ orgId }: { orgId?: any }) {
                 </div>
 
                 {!d.isVerified && (
-                  <div className="rounded bg-muted p-3 text-xs space-y-1">
-                    <p className="font-medium">DNS Setup Instructions:</p>
+                  <div id="domains-unverified" className="rounded bg-muted p-3 text-xs space-y-2">
+                    <p className="font-medium">DNS Setup Instructions</p>
                     <p>
-                      Add a <strong>CNAME</strong> record to your DNS:
+                      Ask your hosting provider or IT Admin to add the below
+                      record as a DNS entry for the domain you own, or use
+                      your hosting cPanel / KonsoleH / Admin Panel to add it
+                      yourself.
                     </p>
                     <div className="font-mono bg-background rounded p-2 border">
                       <p>Type: CNAME</p>
@@ -713,9 +716,10 @@ function WhiteLabelSection({ orgId }: { orgId?: any }) {
                       </p>
                       <p>Value: roombook.co.za</p>
                     </div>
-                    <p className="text-muted-foreground mt-1">
-                      DNS changes can take up to 48 hours to propagate.
-                      Click &quot;Verify DNS&quot; once you&apos;ve added the record.
+                    <p className="text-muted-foreground">
+                      Once it&apos;s added, click <strong>Verify DNS</strong>{" "}
+                      to verify. Your white-label link will not work until
+                      your DNS record is verified.
                     </p>
                   </div>
                 )}

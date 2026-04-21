@@ -52,6 +52,7 @@ import { getThemeColors } from "@/lib/calendar-themes";
 import { getRoomColor } from "@/lib/room-colors";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
+import { UnverifiedDomainsBanner } from "@/components/unverified-domains-banner";
 
 type SlotType = "full_day" | "am" | "pm" | "session";
 
@@ -907,6 +908,7 @@ export default function CalendarPage() {
 
   return (
     <div className="space-y-6">
+      <UnverifiedDomainsBanner />
       <div className="space-y-3">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">Calendar</h1>

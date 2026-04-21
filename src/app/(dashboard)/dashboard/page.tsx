@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { CalendarDays, DoorOpen, FileText, Users } from "lucide-react";
+import { UnverifiedDomainsBanner } from "@/components/unverified-domains-banner";
 import { Id } from "../../../../convex/_generated/dataModel";
 import { useMemo } from "react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
@@ -74,6 +75,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <UnverifiedDomainsBanner />
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">
