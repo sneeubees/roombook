@@ -245,6 +245,56 @@ export default function CalendarPage() {
     );
   }, [selectedRoomObj]);
 
+  // Minute-ranges that are already booked for the selected date & room,
+  // used to disable conflicting time picks in the Book Room dialog.
+  const dialogBusyRanges = useMemo(() => {
+    if (!selectedDate || !selectedRoom || !bookings || !selectedRoomObj) return [];
+    const rs = parseInt((selectedRoomObj.availabilityStart ?? "08:00").split(":")[0]) * 60;
+    const re = parseInt((selectedRoomObj.availabilityEnd ?? "18:00").split(":")[0]) * 60;
+    const mid = Math.floor((rs + re) / 2);
+    const ranges: { start: number; end: number }[] = [];
+    bookings
+      .filter(
+        (b) =>
+          b.date === selectedDate &&
+          b.roomId === selectedRoom &&
+          b.status === "confirmed"
+      )
+      .forEach((b) => {
+        if (b.slotType === "session" && b.startTime && b.endTime) {
+          const [sh, sm] = b.startTime.split(":").map(Number);
+          const [eh, em] = b.endTime.split(":").map(Number);
+          ranges.push({ start: sh * 60 + sm, end: eh * 60 + em });
+        } else if (b.slotType === "full_day") {
+          ranges.push({ start: rs, end: re });
+        } else if (b.slotType === "am") {
+          ranges.push({ start: rs, end: mid });
+        } else if (b.slotType === "pm") {
+          ranges.push({ start: mid, end: re });
+        }
+      });
+    return ranges;
+  }, [selectedDate, selectedRoom, bookings, selectedRoomObj]);
+
+  function timeToMin(t: string) {
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + m;
+  }
+
+  function isStartTimeDisabled(time: string): boolean {
+    const min = timeToMin(time);
+    // Starting at this time is invalid if it falls inside an existing booking
+    return dialogBusyRanges.some((r) => min >= r.start && min < r.end);
+  }
+
+  function isEndTimeDisabled(time: string, startTime: string): boolean {
+    const end = timeToMin(time);
+    const start = timeToMin(startTime);
+    if (end <= start) return true;
+    // End is invalid if (start, end) overlaps any busy range
+    return dialogBusyRanges.some((r) => start < r.end && r.start < end);
+  }
+
   async function handleBookRoom() {
     if (!orgId || !user?.id || !selectedRoom || !selectedDate) return;
     setIsSubmitting(true);
@@ -1189,23 +1239,41 @@ export default function CalendarPage() {
                     <Select value={bookingStartTime} onValueChange={(v) => {
                       if (!v) return;
                       setBookingStartTime(v);
-                      // Auto-set end time based on default duration
+                      // Auto-set end time based on default duration, but
+                      // don't let it overlap the next busy range.
                       const duration = selectedRoomObj?.sessionDurationMinutes ?? 60;
                       const [h, m] = v.split(":").map(Number);
-                      const endMins = h * 60 + m + duration;
-                      const eh = Math.floor(endMins / 60);
-                      const em = endMins % 60;
-                      setBookingEndTime(`${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`);
+                      const startMin = h * 60 + m;
+                      const nextBusy = dialogBusyRanges
+                        .filter((r) => r.start > startMin)
+                        .reduce(
+                          (acc, r) => Math.min(acc, r.start),
+                          Number.POSITIVE_INFINITY
+                        );
+                      const proposedEnd = Math.min(startMin + duration, nextBusy);
+                      const eh = Math.floor(proposedEnd / 60);
+                      const em = proposedEnd % 60;
+                      setBookingEndTime(
+                        `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`
+                      );
                     }}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {timeOptions.slice(0, -1).map((t) => (
-                          <SelectItem key={t.value} value={t.value}>
-                            {t.label}
-                          </SelectItem>
-                        ))}
+                        {timeOptions.slice(0, -1).map((t) => {
+                          const disabled = isStartTimeDisabled(t.value);
+                          return (
+                            <SelectItem
+                              key={t.value}
+                              value={t.value}
+                              disabled={disabled}
+                            >
+                              {t.label}
+                              {disabled ? " (booked)" : ""}
+                            </SelectItem>
+                          );
+                        })}
                       </SelectContent>
                     </Select>
                   </div>
@@ -1218,11 +1286,19 @@ export default function CalendarPage() {
                       <SelectContent>
                         {timeOptions
                           .filter((t) => t.value > bookingStartTime)
-                          .map((t) => (
-                            <SelectItem key={t.value} value={t.value}>
-                              {t.label}
-                            </SelectItem>
-                          ))}
+                          .map((t) => {
+                            const disabled = isEndTimeDisabled(t.value, bookingStartTime);
+                            return (
+                              <SelectItem
+                                key={t.value}
+                                value={t.value}
+                                disabled={disabled}
+                              >
+                                {t.label}
+                                {disabled ? " (conflict)" : ""}
+                              </SelectItem>
+                            );
+                          })}
                       </SelectContent>
                     </Select>
                   </div>
