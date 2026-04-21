@@ -76,9 +76,9 @@ export default function InvitePage() {
         <CardHeader>
           <CardTitle>Invite Team Member</CardTitle>
           <CardDescription>
-            Send an invitation link to add someone to your practice. Each
-            organisation has only one Owner, so new invitees can be a Manager
-            or a Booker.
+            Send an invitation link to add someone to your organisation. Each
+            organisation has only one Owner, so new team members can be invited
+            as a Manager or Booker.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -110,10 +110,10 @@ export default function InvitePage() {
                 </SelectTrigger>
                 <SelectContent className="min-w-[560px]">
                   <SelectItem value="booker">
-                    Booker — book rooms and view own invoices
+                    Booker — Can book rooms and view their own invoices
                   </SelectItem>
                   <SelectItem value="manager">
-                    Manager — manage bookings, rooms, team, invoices (no Settings/Reports)
+                    Manager — Can manage bookings, rooms, team members, and invoices (cannot access Settings or Reports)
                   </SelectItem>
                 </SelectContent>
               </Select>
