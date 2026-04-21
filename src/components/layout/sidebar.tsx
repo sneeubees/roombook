@@ -4,12 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useUserRole } from "@/hooks/use-user-role";
-import { useSubscriptionTier } from "@/hooks/use-subscription-tier";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useCustomDomain } from "@/hooks/use-custom-domain";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import type { Feature } from "@/lib/tiers";
 import {
   CalendarDays,
   LayoutDashboard,
@@ -29,7 +27,6 @@ type NavLink = {
   href: string;
   label: string;
   icon: LucideIcon;
-  requiredFeature?: Feature;
 };
 
 const ownerLinks: NavLink[] = [
@@ -37,10 +34,10 @@ const ownerLinks: NavLink[] = [
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/rooms", label: "Rooms", icon: DoorOpen },
   { href: "/bookings", label: "Bookings", icon: BookOpen },
-  { href: "/history", label: "Booking History", icon: History, requiredFeature: "history" },
+  { href: "/history", label: "Booking History", icon: History },
   { href: "/team", label: "Team", icon: Users },
-  { href: "/invoices", label: "Invoices", icon: FileText, requiredFeature: "invoices" },
-  { href: "/reports", label: "Reports", icon: BarChart3, requiredFeature: "reports" },
+  { href: "/invoices", label: "Invoices", icon: FileText },
+  { href: "/reports", label: "Reports", icon: BarChart3 },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -48,15 +45,14 @@ const bookerLinks: NavLink[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/calendar", label: "Calendar", icon: CalendarDays },
   { href: "/bookings", label: "My Bookings", icon: BookOpen },
-  { href: "/history", label: "Booking History", icon: History, requiredFeature: "history" },
-  { href: "/invoices", label: "Invoices", icon: FileText, requiredFeature: "invoices" },
+  { href: "/history", label: "Booking History", icon: History },
+  { href: "/invoices", label: "Invoices", icon: FileText },
 ];
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const pathname = usePathname();
   const { isOwner, isManager, isSuperAdmin, canAccessSettings, canAccessReports } = useUserRole();
   const { isCustomDomain } = useCustomDomain();
-  const { can } = useSubscriptionTier();
   const { convexOrg } = useOrgData();
 
   const unreadCount = useQuery(api.notifications.countUnread);
@@ -65,7 +61,6 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   // Manager gets owner links minus Settings + Reports
   const allLinks = (isOwner || isManager) ? ownerLinks : bookerLinks;
   const links = allLinks.filter((link) => {
-    if (link.requiredFeature && !can(link.requiredFeature)) return false;
     if (link.href === "/invoices" && !invoicesOn) return false;
     if (link.href === "/settings" && !canAccessSettings) return false;
     if (link.href === "/reports" && !canAccessReports) return false;

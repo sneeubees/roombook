@@ -4,7 +4,6 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
-import { useSubscriptionTier } from "@/hooks/use-subscription-tier";
 import { useState, useMemo } from "react";
 import {
   Card,
@@ -49,7 +48,6 @@ const DAY_NAMES = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 export default function ReportsPage() {
   const { orgId } = useOrgData();
-  const { can } = useSubscriptionTier();
   const { canAccessReports } = useUserRole();
   const [monthsBack, setMonthsBack] = useState(3);
 
@@ -60,19 +58,6 @@ export default function ReportsPage() {
         <p className="text-muted-foreground max-w-md">
           Only owners can access Reports. Please contact your organization
           owner for this data.
-        </p>
-      </div>
-    );
-  }
-
-  if (!can("reports")) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <div className="text-4xl mb-4">📊</div>
-        <h2 className="text-xl font-semibold mb-2">Reports</h2>
-        <p className="text-muted-foreground max-w-md">
-          Upgrade to the Professional plan to access occupancy charts, revenue
-          reports, busy-time heatmaps, and booker utilization analytics.
         </p>
       </div>
     );

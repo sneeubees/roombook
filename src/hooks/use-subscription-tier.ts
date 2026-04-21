@@ -1,18 +1,16 @@
 "use client";
 
-import { useOrgData } from "./use-org-data";
-import { hasFeature, type Feature, type SubscriptionTier } from "@/lib/tiers";
-
+/**
+ * Subscription tiers are disabled for now. Every user sees every feature
+ * their role permits. This hook is kept so existing call sites continue to
+ * compile; `can(...)` always returns true.
+ */
 export function useSubscriptionTier() {
-  const { convexOrg } = useOrgData();
-  const tier: SubscriptionTier =
-    (convexOrg?.subscriptionTier as SubscriptionTier) ?? "basic";
-
   return {
-    tier,
-    can: (feature: Feature) => hasFeature(tier, feature),
-    isBasic: tier === "basic",
-    isProfessional: tier === "professional",
-    isEnterprise: tier === "enterprise",
+    tier: "enterprise" as const,
+    can: (_feature: string) => true,
+    isBasic: false,
+    isProfessional: false,
+    isEnterprise: true,
   };
 }

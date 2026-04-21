@@ -4,9 +4,7 @@ import { useQuery, useAction } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
-import { useSubscriptionTier } from "@/hooks/use-subscription-tier";
 import { useMemo } from "react";
-import { Lock } from "lucide-react";
 import {
   Card,
   CardContent,
@@ -51,20 +49,6 @@ export default function InvoicesPage() {
   const me = useQuery(api.users.currentUser);
   const { orgId, convexOrg } = useOrgData();
   const { isOwner } = useUserRole();
-  const { can } = useSubscriptionTier();
-
-  if (!can("invoices")) {
-    return (
-      <div className="flex flex-col items-center justify-center py-20 text-center">
-        <Lock className="h-12 w-12 text-muted-foreground/30 mb-4" />
-        <h2 className="text-xl font-semibold mb-2">Invoices</h2>
-        <p className="text-muted-foreground max-w-md">
-          Upgrade to the Professional plan to access automated invoicing with
-          PDF generation and email delivery.
-        </p>
-      </div>
-    );
-  }
 
   // For now, query all invoices by org. In production, filter by user for bookers
   const invoices = useQuery(

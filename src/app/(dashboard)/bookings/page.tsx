@@ -36,7 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Lock, CalendarDays, X, Download, Pencil } from "lucide-react";
+import { CalendarDays, X, Download, Pencil } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -152,22 +152,13 @@ export default function BookingsPage() {
 
       <Tabs
         value={period}
-        onValueChange={(v) => {
-          if (!hasHistory && v !== "today") return;
-          setPeriod(v as typeof period);
-        }}
+        onValueChange={(v) => setPeriod(v as typeof period)}
       >
         <TabsList>
           <TabsTrigger value="today">Today</TabsTrigger>
-          <TabsTrigger value="week" disabled={!hasHistory}>
-            This Week {!hasHistory && <Lock className="h-3 w-3 ml-1" />}
-          </TabsTrigger>
-          <TabsTrigger value="month" disabled={!hasHistory}>
-            This Month {!hasHistory && <Lock className="h-3 w-3 ml-1" />}
-          </TabsTrigger>
-          <TabsTrigger value="all" disabled={!hasHistory}>
-            All Time {!hasHistory && <Lock className="h-3 w-3 ml-1" />}
-          </TabsTrigger>
+          <TabsTrigger value="week">This Week</TabsTrigger>
+          <TabsTrigger value="month">This Month</TabsTrigger>
+          <TabsTrigger value="all">All Time</TabsTrigger>
         </TabsList>
 
         <TabsContent value={period}>
@@ -184,11 +175,6 @@ export default function BookingsPage() {
               </CardTitle>
               <CardDescription>
                 {bookings?.length ?? 0} booking(s)
-                {!hasHistory && (
-                  <span className="ml-2 text-xs">
-                    Upgrade to Professional to view booking history
-                  </span>
-                )}
               </CardDescription>
             </CardHeader>
             <CardContent>

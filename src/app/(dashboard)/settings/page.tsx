@@ -25,7 +25,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { TIER_FEATURES, type SubscriptionTier } from "@/lib/tiers";
 import { CALENDAR_THEMES, type CalendarThemeId } from "@/lib/calendar-themes";
 import { toast } from "sonner";
 
@@ -54,7 +53,6 @@ export default function SettingsPage() {
   const [customStaffLabel, setCustomStaffLabel] = useState("");
   const [showBookerNames, setShowBookerNames] = useState(false);
   const [showBookerContact, setShowBookerContact] = useState(false);
-  const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>("basic");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -93,7 +91,6 @@ export default function SettingsPage() {
       }
       setShowBookerNames(convexOrg.showBookerNames ?? false);
       setShowBookerContact(convexOrg.showBookerContact ?? false);
-      setSubscriptionTier((convexOrg.subscriptionTier as SubscriptionTier) ?? "basic");
     }
   }, [convexOrg]);
 
@@ -126,7 +123,6 @@ export default function SettingsPage() {
         staffLabel: staffLabel === "Other" ? customStaffLabel || "Booker" : staffLabel,
         showBookerNames,
         showBookerContact: showBookerNames ? showBookerContact : false,
-        subscriptionTier,
         invoicesEnabled,
         invoiceMode,
         invoiceDayOfMonth: parseInt(invoiceDayOfMonth),

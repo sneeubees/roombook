@@ -147,7 +147,6 @@ export default function AdminPage() {
               orgId={org._id}
               name={org.name}
               status={org.status ?? "active"}
-              tier={org.subscriptionTier ?? "basic"}
               createdAt={org._creationTime}
               approveOrg={approveOrg}
               suspendOrg={suspendOrg}
@@ -247,7 +246,6 @@ function OrgBlock({
   orgId,
   name,
   status,
-  tier,
   createdAt,
   approveOrg,
   suspendOrg,
@@ -257,7 +255,6 @@ function OrgBlock({
   orgId: Id<"organizations">;
   name: string;
   status: string;
-  tier: string;
   createdAt: number;
   approveOrg: (args: { id: Id<"organizations"> }) => Promise<unknown>;
   suspendOrg: (args: { id: Id<"organizations"> }) => Promise<unknown>;
@@ -277,7 +274,7 @@ function OrgBlock({
         <div>
           <div className="font-medium">{name}</div>
           <div className="text-xs text-muted-foreground">
-            {format(new Date(createdAt), "d MMM yyyy")} · {tier}
+            {format(new Date(createdAt), "d MMM yyyy")}
           </div>
         </div>
         <div className="flex items-center gap-2">
