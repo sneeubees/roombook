@@ -5,6 +5,7 @@ import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
 import Link from "next/link";
+import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -15,14 +16,30 @@ import {
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Edit } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Plus, Edit, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { Id } from "../../../../convex/_generated/dataModel";
 
 export default function RoomsPage() {
   const { orgId } = useOrgData();
   const { isOwner } = useUserRole();
   const rooms = useQuery(api.rooms.list, orgId ? { orgId } : "skip");
   const updateRoom = useMutation(api.rooms.update);
+  const removeRoom = useMutation(api.rooms.remove);
+
+  const [deleteTarget, setDeleteTarget] = useState<{
+    id: Id<"rooms">;
+    name: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   if (!isOwner) {
     return (
@@ -80,6 +97,13 @@ export default function RoomsPage() {
         </Link>
       </div>
 
+      <p className="text-xs text-muted-foreground">
+        To remove a room, please deactivate it first — an active room cannot be
+        deleted. Deleted rooms are kept in historical records so past bookings
+        and invoices remain intact; you can create a new room with the same
+        name afterwards.
+      </p>
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {rooms?.map((room) => (
           <Card key={room._id} className={!room.isActive ? "opacity-60" : ""}>
@@ -96,9 +120,28 @@ export default function RoomsPage() {
                       );
                     }}
                   />
-                  <Link href={`/rooms/${room._id}/edit`} className={buttonVariants({ variant: "ghost", size: "icon" })}>
+                  <Link
+                    href={`/rooms/${room._id}/edit`}
+                    className={buttonVariants({
+                      variant: "ghost",
+                      size: "icon",
+                    })}
+                  >
                     <Edit className="h-4 w-4" />
                   </Link>
+                  {!room.isActive && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="text-destructive"
+                      onClick={() =>
+                        setDeleteTarget({ id: room._id, name: room.name })
+                      }
+                      title="Delete room"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               </div>
               {room.description && (
@@ -164,6 +207,50 @@ export default function RoomsPage() {
           </Card>
         ))}
       </div>
+
+      {/* Delete confirmation */}
+      <Dialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete room?</DialogTitle>
+            <DialogDescription>
+              <strong>{deleteTarget?.name}</strong> will be hidden from the app.
+              Past bookings and invoices that reference it stay intact for
+              reporting. You can create a new room with the same name
+              afterwards; they will be tracked as separate rooms.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isDeleting}
+              onClick={async () => {
+                if (!deleteTarget) return;
+                setIsDeleting(true);
+                try {
+                  await removeRoom({ id: deleteTarget.id });
+                  toast.success(`${deleteTarget.name} deleted`);
+                  setDeleteTarget(null);
+                } catch (err) {
+                  toast.error(
+                    err instanceof Error ? err.message : "Failed to delete room"
+                  );
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+            >
+              {isDeleting ? "Deleting…" : "Yes, delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

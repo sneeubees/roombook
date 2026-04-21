@@ -98,6 +98,9 @@ export default defineSchema({
       v.literal("bill_if_late")
     ),
     cancellationDeadlineHours: v.optional(v.number()),
+    // Soft-delete. Present = room has been removed. The row is retained so
+    // historical bookings / invoices keep their roomName reference intact.
+    deletedAt: v.optional(v.number()),
   }).index("by_org", ["orgId"]),
 
   // Bookings.
