@@ -776,10 +776,43 @@ export default function CalendarPage() {
     const startH = parseInt((room.availabilityStart ?? "08:00").split(":")[0]);
     const endH = parseInt((room.availabilityEnd ?? "18:00").split(":")[0]);
     const hours = Array.from({ length: endH - startH }, (_, i) => startH + i);
-    const totalPx = hours.length * hourPx;
 
     const dayBookings = getBookingsForDay(dateStr).filter((b) => b.roomId === room._id);
     const dayBlocks = getBlocksForDay(dateStr).filter((b) => b.roomId === room._id);
+
+    // Expand an hour's row height when multiple bookings overlap that hour
+    // so short (30-min) stacked bookings don't crush into unreadable slivers.
+    const hourHeight = hours.map((h) => {
+      const hourStart = h * 60;
+      const hourEnd = hourStart + 60;
+      let count = 0;
+      for (const b of dayBookings) {
+        const { startMin, endMin } = bookingRangeMins(b, room);
+        if (startMin < hourEnd && endMin > hourStart) count++;
+      }
+      // Doubled when 2+ bookings share an hour, tripled for 3+ etc.
+      return count >= 2 ? hourPx * Math.min(count, 3) : hourPx;
+    });
+    const hourTop: number[] = [];
+    {
+      let cum = 0;
+      for (let i = 0; i < hours.length; i++) {
+        hourTop.push(cum);
+        cum += hourHeight[i];
+      }
+      hourTop.push(cum); // sentinel for end of day
+    }
+    const totalPx = hourTop[hours.length];
+
+    // Map a minute-of-day to its pixel offset in the variable-height grid.
+    function minToPx(min: number): number {
+      if (min <= startH * 60) return 0;
+      if (min >= endH * 60) return totalPx;
+      const h = Math.floor(min / 60);
+      const idx = h - startH;
+      const into = (min - h * 60) / 60;
+      return hourTop[idx] + into * hourHeight[idx];
+    }
 
     const dow = new Date(dateStr + "T12:00:00").getDay();
     const closedDay =
@@ -818,7 +851,7 @@ export default function CalendarPage() {
               "absolute left-0 right-0 flex items-center hover:bg-muted/20 cursor-pointer",
               i > 0 && "border-t border-dashed border-muted-foreground/30"
             )}
-            style={{ top: i * hourPx, height: hourPx }}
+            style={{ top: hourTop[i], height: hourHeight[i] }}
             onClick={() =>
               openBookingDialog(
                 dateStr,
@@ -853,8 +886,8 @@ export default function CalendarPage() {
                 endMin = re;
               }
             }
-            const top = ((startMin - startH * 60) / 60) * hourPx;
-            const height = Math.max(((endMin - startMin) / 60) * hourPx, hourPx);
+            const top = minToPx(startMin);
+            const height = Math.max(minToPx(endMin) - top, hourPx);
             return (
               <div
                 key={`blk-${i}`}
@@ -867,8 +900,8 @@ export default function CalendarPage() {
           })}
         {dayBookings.map((b) => {
           const { startMin, endMin } = bookingRangeMins(b, room);
-          const top = ((startMin - startH * 60) / 60) * hourPx;
-          const height = Math.max(((endMin - startMin) / 60) * hourPx, hourPx);
+          const top = minToPx(startMin);
+          const height = Math.max(minToPx(endMin) - top, hourPx);
           const color = getColorForBooking(b);
           const { main } = getBookingLabel(b);
           const isMine = b.userId === me?._id;
