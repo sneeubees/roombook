@@ -71,7 +71,8 @@ export async function POST(request: Request) {
         });
     }
 
-    const success = await sendEmail({ to, subject, html });
+    const replyTo: string | undefined = data.replyTo;
+    const success = await sendEmail({ to, subject, html, replyTo });
 
     return new Response(JSON.stringify({ success }), {
       status: success ? 200 : 500,

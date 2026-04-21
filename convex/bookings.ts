@@ -472,6 +472,7 @@ export const cancel = mutation({
     for (const entry of waitlistEntries) {
       await ctx.scheduler.runAfter(0, internal.emailActions.sendWaitlistNotification, {
         userId: entry.userId,
+        orgId: booking.orgId,
         roomName: room2?.name ?? "Unknown Room",
         date: booking.date,
         slot: slotLabel,

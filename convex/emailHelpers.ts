@@ -1,6 +1,19 @@
 import { v } from "convex/values";
 import { internalQuery } from "./_generated/server";
 
+async function ownerEmailForOrg(
+  ctx: { db: { get: (id: any) => Promise<any> } },
+  org: { ownerUserId?: any; email?: string } | null
+): Promise<string | undefined> {
+  if (!org) return undefined;
+  if (org.ownerUserId) {
+    const owner = await ctx.db.get(org.ownerUserId);
+    const e = (owner as { email?: string } | null)?.email;
+    if (e) return e;
+  }
+  return org.email || undefined;
+}
+
 export const getBookingWithDetails = internalQuery({
   args: { bookingId: v.id("bookings") },
   handler: async (ctx, args) => {
@@ -10,12 +23,14 @@ export const getBookingWithDetails = internalQuery({
     const room = await ctx.db.get(booking.roomId);
     const org = await ctx.db.get(booking.orgId);
     const user = await ctx.db.get(booking.userId);
+    const ownerEmail = await ownerEmailForOrg(ctx, org);
 
     return {
       ...booking,
       roomName: room?.name ?? "Unknown Room",
       orgName: org?.name ?? "Unknown Organization",
       userEmail: (user as { email?: string } | null)?.email ?? "",
+      ownerEmail,
     };
   },
 });
@@ -34,6 +49,7 @@ export const getInvoiceWithDetails = internalQuery({
           .withIndex("by_user", (q) => q.eq("userId", invoice.userId))
           .unique()
       : null;
+    const ownerEmail = await ownerEmailForOrg(ctx, org);
 
     return {
       ...invoice,
@@ -43,6 +59,7 @@ export const getInvoiceWithDetails = internalQuery({
         profile?.fullName ??
         (user as { name?: string } | null)?.name ??
         "Unknown",
+      ownerEmail,
     };
   },
 });
@@ -62,5 +79,13 @@ export const getUserById = internalQuery({
       fullName:
         profile?.fullName ?? (user as { name?: string }).name ?? "",
     };
+  },
+});
+
+export const getOrgOwnerEmail = internalQuery({
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const org = await ctx.db.get(args.orgId);
+    return ownerEmailForOrg(ctx, org);
   },
 });

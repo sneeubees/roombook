@@ -29,6 +29,7 @@ export const sendBookingConfirmation = internalAction({
           type: "booking_confirmation",
           data: {
             email: booking.userEmail,
+            replyTo: booking.ownerEmail,
             userName: booking.userName,
             roomName: booking.roomName,
             date: booking.date,
@@ -73,6 +74,7 @@ export const sendBookingCancellation = internalAction({
           type: "booking_cancellation",
           data: {
             email: booking.userEmail,
+            replyTo: booking.ownerEmail,
             userName: booking.userName,
             roomName: booking.roomName,
             date: booking.date,
@@ -108,6 +110,7 @@ export const sendInvoiceEmail = internalAction({
           type: "invoice_ready",
           data: {
             email: invoice.userEmail,
+            replyTo: invoice.ownerEmail,
             userName: invoice.userName,
             invoiceNumber: invoice.invoiceNumber,
             period: `${invoice.periodStart} - ${invoice.periodEnd}`,
@@ -126,6 +129,7 @@ export const sendInvoiceEmail = internalAction({
 export const sendWaitlistNotification = internalAction({
   args: {
     userId: v.union(v.id("users"), v.string()),
+    orgId: v.optional(v.id("organizations")),
     roomName: v.string(),
     date: v.string(),
     slot: v.string(),
@@ -142,6 +146,13 @@ export const sendWaitlistNotification = internalAction({
     });
     if (!user) return;
 
+    let ownerEmail: string | undefined;
+    if (args.orgId) {
+      ownerEmail = await ctx.runQuery(internal.emailHelpers.getOrgOwnerEmail, {
+        orgId: args.orgId,
+      });
+    }
+
     try {
       await fetch(`${APP_URL}/api/email/send`, {
         method: "POST",
@@ -150,6 +161,7 @@ export const sendWaitlistNotification = internalAction({
           type: "waitlist_available",
           data: {
             email: user.email,
+            replyTo: ownerEmail,
             userName: user.fullName,
             roomName: args.roomName,
             date: args.date,
