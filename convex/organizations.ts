@@ -89,9 +89,10 @@ export const create = mutation({
       timezone: "Africa/Johannesburg",
       vatRate: 0.15,
       subscriptionTier: "basic" as const,
-      // Self-serve signups are active immediately. A super admin can still
-      // suspend an org from the admin panel.
-      status: "active" as const,
+      // Owner sign-ups wait for super-admin approval. Managers / bookers
+      // joining via an invite don't create an org, so they're unaffected.
+      // This gate will move to a payment / subscription check later.
+      status: "pending_approval" as const,
       ownerUserId: userId,
     });
 
