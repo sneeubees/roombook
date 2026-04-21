@@ -46,7 +46,7 @@ export default function OnboardingPage() {
 
   useEffect(() => {
     if (me && !orgName) {
-      setOrgName(me.fullName ? `${me.fullName}'s Practice` : "My Practice");
+      setOrgName(me.fullName ? `${me.fullName}'s Organization` : "My Organization");
     }
   }, [me, orgName]);
 
@@ -85,15 +85,15 @@ export default function OnboardingPage() {
       <div className="w-full max-w-md space-y-6 rounded-lg border bg-background p-8 shadow-sm">
         <div className="text-center space-y-2">
           <DoorOpen className="h-10 w-10 text-primary mx-auto" />
-          <h1 className="text-2xl font-bold">Set up your practice</h1>
+          <h1 className="text-2xl font-bold">Set up your organization / practice</h1>
           <p className="text-sm text-muted-foreground">
-            Give your organization a name to get started.
+            Give your organization / practice a name to get started.
           </p>
         </div>
 
         <form onSubmit={handleCreate} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="org-name">Organization Name</Label>
+            <Label htmlFor="org-name">Organization / Practice Name</Label>
             <Input
               id="org-name"
               value={orgName}
@@ -109,7 +109,7 @@ export default function OnboardingPage() {
             className="w-full"
             disabled={isSubmitting || !orgName.trim()}
           >
-            {isSubmitting ? "Creating..." : "Create Practice"}
+            {isSubmitting ? "Creating..." : "Create"}
           </Button>
         </form>
       </div>
