@@ -439,9 +439,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="invoiceDay">
-                  Invoice Day of Month (1-28)
-                </Label>
+                <Label htmlFor="invoiceDay">Invoice Day of Month</Label>
                 <Input
                   id="invoiceDay"
                   type="number"
