@@ -89,7 +89,9 @@ export const create = mutation({
       timezone: "Africa/Johannesburg",
       vatRate: 0.15,
       subscriptionTier: "basic" as const,
-      status: "pending_approval" as const,
+      // Self-serve signups are active immediately. A super admin can still
+      // suspend an org from the admin panel.
+      status: "active" as const,
       ownerUserId: userId,
     });
 
@@ -212,20 +214,94 @@ export const updateMemberRole = mutation({
   args: {
     orgId: v.id("organizations"),
     userId: v.id("users"),
-    role: v.union(v.literal("manager"), v.literal("booker")),
+    role: v.union(
+      v.literal("owner"),
+      v.literal("manager"),
+      v.literal("booker")
+    ),
   },
   handler: async (ctx, args) => {
     const actorId = await getAuthUserId(ctx);
     if (!actorId) throw new Error("Not authenticated");
-    const actor = await getMembershipFor(ctx, args.orgId, actorId);
-    if (!actor || actor.role !== "owner") {
-      throw new Error("Only the owner can change member roles");
+
+    // Super admins bypass membership checks and can set any role.
+    const actorProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", actorId))
+      .unique();
+    const isSuperAdmin = actorProfile?.isSuperAdmin === true;
+
+    if (!isSuperAdmin) {
+      const actor = await getMembershipFor(ctx, args.orgId, actorId);
+      if (!actor || actor.role !== "owner") {
+        throw new Error("Only the owner or a super admin can change member roles");
+      }
+      if (args.role === "owner") {
+        throw new Error(
+          "Only a super admin can transfer ownership (each org has one owner)"
+        );
+      }
     }
+
     const target = await getMembershipFor(ctx, args.orgId, args.userId);
-    if (!target) throw new Error("Member not found");
-    if (target.role === "owner") {
-      throw new Error("Use a separate transfer flow to change the owner");
+    if (!target) throw new Error("Member not found in this organisation");
+
+    // Owner transfer — demote any existing owner to manager first.
+    if (args.role === "owner") {
+      const existingOwner = await ctx.db
+        .query("memberships")
+        .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+        .collect()
+        .then((rows) => rows.find((r) => r.role === "owner"));
+      if (existingOwner && existingOwner._id !== target._id) {
+        await ctx.db.patch(existingOwner._id, { role: "manager" });
+      }
+      await ctx.db.patch(args.orgId, { ownerUserId: args.userId });
     }
+
     await ctx.db.patch(target._id, { role: args.role });
+  },
+});
+
+// Super-admin helper: find a user by email, create a membership in the given
+// org with the given role (used by the admin panel to attach a user to any
+// org without going through the invite flow).
+export const addMemberByEmail = mutation({
+  args: {
+    orgId: v.id("organizations"),
+    email: v.string(),
+    role: v.union(
+      v.literal("owner"),
+      v.literal("manager"),
+      v.literal("booker")
+    ),
+  },
+  handler: async (ctx, args) => {
+    const actorId = await getAuthUserId(ctx);
+    if (!actorId) throw new Error("Not authenticated");
+    const actorProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", actorId))
+      .unique();
+    if (!actorProfile?.isSuperAdmin) {
+      throw new Error("Super admin only");
+    }
+
+    const users = await ctx.db.query("users").collect();
+    const user = users.find(
+      (u) => (u as { email?: string }).email === args.email
+    );
+    if (!user) throw new Error(`No user with email ${args.email}`);
+
+    const existing = await getMembershipFor(ctx, args.orgId, user._id);
+    if (existing) {
+      await ctx.db.patch(existing._id, { role: args.role });
+      return existing._id;
+    }
+    return await ctx.db.insert("memberships", {
+      orgId: args.orgId,
+      userId: user._id,
+      role: args.role,
+    });
   },
 });

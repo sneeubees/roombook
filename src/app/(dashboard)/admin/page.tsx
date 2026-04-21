@@ -20,11 +20,23 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Shield, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { Id } from "../../../../convex/_generated/dataModel";
+import { useMemo } from "react";
 
-const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+const statusColors: Record<
+  string,
+  "default" | "secondary" | "destructive" | "outline"
+> = {
   active: "default",
   pending_approval: "secondary",
   suspended: "destructive",
@@ -37,6 +49,10 @@ export default function AdminPage() {
   const approveOrg = useMutation(api.organizations.approve);
   const suspendOrg = useMutation(api.organizations.suspend);
   const setSuperAdmin = useMutation(api.users.setSuperAdmin);
+  const updateMemberRole = useMutation(api.organizations.updateMemberRole);
+
+  // All memberships across every org, fetched per-org (cheap for dev volumes).
+  const orgIds = useMemo(() => organizations?.map((o) => o._id) ?? [], [organizations]);
 
   if (!isSuperAdmin) {
     return (
@@ -59,9 +75,7 @@ export default function AdminPage() {
       {organizations?.some((o) => (o.status ?? "active") === "pending_approval") && (
         <Card className="border-amber-200 bg-amber-50/50">
           <CardHeader>
-            <CardTitle className="text-amber-800">
-              Pending Approvals
-            </CardTitle>
+            <CardTitle className="text-amber-800">Pending Approvals</CardTitle>
             <CardDescription>
               New registrations waiting for your approval.
             </CardDescription>
@@ -80,9 +94,7 @@ export default function AdminPage() {
                   ?.filter((o) => (o.status ?? "active") === "pending_approval")
                   .map((org) => (
                     <TableRow key={org._id}>
-                      <TableCell className="font-medium">
-                        {org.name}
-                      </TableCell>
+                      <TableCell className="font-medium">{org.name}</TableCell>
                       <TableCell className="text-muted-foreground">
                         {format(new Date(org._creationTime), "d MMM yyyy HH:mm")}
                       </TableCell>
@@ -119,78 +131,30 @@ export default function AdminPage() {
         </Card>
       )}
 
-      {/* All Organizations */}
+      {/* All Organizations with member management */}
       <Card>
         <CardHeader>
           <CardTitle>All Organizations</CardTitle>
           <CardDescription>
-            {organizations?.length ?? 0} organization(s) on the platform
+            {organizations?.length ?? 0} organization(s). Expand a row to manage
+            members and roles.
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Tier</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead></TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {organizations?.map((org) => {
-                const status = org.status ?? "active";
-                return (
-                  <TableRow key={org._id}>
-                    <TableCell className="font-medium">{org.name}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline">
-                        {org.subscriptionTier ?? "basic"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={statusColors[status] ?? "secondary"}>
-                        {status.replace("_", " ")}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {format(new Date(org._creationTime), "d MMM yyyy")}
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2 justify-end">
-                        {status !== "active" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={async () => {
-                              await approveOrg({ id: org._id });
-                              toast.success(`${org.name} activated`);
-                            }}
-                          >
-                            Activate
-                          </Button>
-                        )}
-                        {status === "active" && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="text-destructive"
-                            onClick={async () => {
-                              await suspendOrg({ id: org._id });
-                              toast.success(`${org.name} suspended`);
-                            }}
-                          >
-                            Suspend
-                          </Button>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+        <CardContent className="space-y-2">
+          {organizations?.map((org) => (
+            <OrgBlock
+              key={org._id}
+              orgId={org._id}
+              name={org.name}
+              status={org.status ?? "active"}
+              tier={org.subscriptionTier ?? "basic"}
+              createdAt={org._creationTime}
+              approveOrg={approveOrg}
+              suspendOrg={suspendOrg}
+              updateMemberRole={updateMemberRole}
+              allUsers={users ?? []}
+            />
+          ))}
         </CardContent>
       </Card>
 
@@ -209,7 +173,7 @@ export default function AdminPage() {
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>Phone</TableHead>
-                <TableHead>Role</TableHead>
+                <TableHead>Super Admin</TableHead>
                 <TableHead>Profile</TableHead>
                 <TableHead></TableHead>
               </TableRow>
@@ -264,6 +228,155 @@ export default function AdminPage() {
           </Table>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+type UserRow = {
+  _id: Id<"users">;
+  email: string;
+  fullName: string;
+  phone?: string;
+  imageUrl?: string;
+  isProfileComplete?: boolean;
+  isSuperAdmin?: boolean;
+  _creationTime: number;
+};
+
+function OrgBlock({
+  orgId,
+  name,
+  status,
+  tier,
+  createdAt,
+  approveOrg,
+  suspendOrg,
+  updateMemberRole,
+  allUsers,
+}: {
+  orgId: Id<"organizations">;
+  name: string;
+  status: string;
+  tier: string;
+  createdAt: number;
+  approveOrg: (args: { id: Id<"organizations"> }) => Promise<unknown>;
+  suspendOrg: (args: { id: Id<"organizations"> }) => Promise<unknown>;
+  updateMemberRole: (args: {
+    orgId: Id<"organizations">;
+    userId: Id<"users">;
+    role: "owner" | "manager" | "booker";
+  }) => Promise<unknown>;
+  allUsers: UserRow[];
+}) {
+  const memberships = useQuery(api.organizations.listMembershipsByOrg, { orgId });
+  const usersById = new Map(allUsers.map((u) => [u._id, u] as const));
+
+  return (
+    <div className="border rounded-md p-4 space-y-3">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <div className="font-medium">{name}</div>
+          <div className="text-xs text-muted-foreground">
+            {format(new Date(createdAt), "d MMM yyyy")} · {tier}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant={statusColors[status] ?? "secondary"}>
+            {status.replace("_", " ")}
+          </Badge>
+          {status !== "active" && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                await approveOrg({ id: orgId });
+                toast.success(`${name} activated`);
+              }}
+            >
+              Activate
+            </Button>
+          )}
+          {status === "active" && (
+            <Button
+              size="sm"
+              variant="ghost"
+              className="text-destructive"
+              onClick={async () => {
+                await suspendOrg({ id: orgId });
+                toast.success(`${name} suspended`);
+              }}
+            >
+              Suspend
+            </Button>
+          )}
+        </div>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Member</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Role</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {(memberships ?? []).map((m) => {
+            const u = usersById.get(m.userId);
+            return (
+              <TableRow key={m._id}>
+                <TableCell className="font-medium">
+                  {u?.fullName || "—"}
+                </TableCell>
+                <TableCell>{u?.email ?? m.userId}</TableCell>
+                <TableCell>
+                  <Select
+                    value={m.role}
+                    onValueChange={async (v) => {
+                      if (!v || v === m.role) return;
+                      try {
+                        await updateMemberRole({
+                          orgId,
+                          userId: m.userId,
+                          role: v as "owner" | "manager" | "booker",
+                        });
+                        toast.success(
+                          `${u?.fullName || u?.email || "User"} is now ${v}`
+                        );
+                      } catch (err) {
+                        toast.error(
+                          err instanceof Error
+                            ? err.message
+                            : "Failed to update role"
+                        );
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="w-[140px]">
+                      <SelectValue>{m.role}</SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="owner">owner</SelectItem>
+                      <SelectItem value="manager">manager</SelectItem>
+                      <SelectItem value="booker">booker</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+          {memberships && memberships.length === 0 && (
+            <TableRow>
+              <TableCell
+                colSpan={3}
+                className="text-xs text-muted-foreground text-center"
+              >
+                No members in this org yet.
+              </TableCell>
+            </TableRow>
+          )}
+        </TableBody>
+      </Table>
     </div>
   );
 }
