@@ -27,7 +27,8 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import Link from "next/link";
 import {
   Dialog,
   DialogContent,
@@ -959,6 +960,27 @@ export default function CalendarPage() {
           </Button>
         </div>
       </div>
+
+      {/* No-rooms nudge */}
+      {rooms && rooms.length === 0 && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 flex items-start justify-between gap-3">
+          <div className="text-sm">
+            <p className="font-medium">No rooms yet</p>
+            <p className="text-xs mt-0.5">
+              You need at least one room before you can take bookings.
+              {isOwner ? " Add one to get started." : " Ask the owner to add a room."}
+            </p>
+          </div>
+          {isOwner && (
+            <Link
+              href="/rooms/new"
+              className={buttonVariants({ size: "sm" })}
+            >
+              Add a room
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* Room filter tabs */}
       {rooms && rooms.length > 0 && (

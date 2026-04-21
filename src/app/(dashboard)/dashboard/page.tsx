@@ -84,6 +84,26 @@ export default function DashboardPage() {
         </Link>
       </div>
 
+      {rooms && rooms.length === 0 && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 flex items-start justify-between gap-3">
+          <div className="text-sm">
+            <p className="font-medium">No rooms yet</p>
+            <p className="text-xs mt-0.5">
+              You need at least one room before you can take bookings.
+              {isOwner ? " Add one to get started." : " Ask the owner to add a room."}
+            </p>
+          </div>
+          {isOwner && (
+            <Link
+              href="/rooms/new"
+              className={buttonVariants({ size: "sm" })}
+            >
+              Add a room
+            </Link>
+          )}
+        </div>
+      )}
+
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
