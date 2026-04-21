@@ -171,11 +171,12 @@ export default function CalendarPage() {
     memberUserIds.length > 0 ? { ids: memberUserIds } : "skip"
   );
 
-  // Helper to resolve a user ID to a display name
+  // Helper to resolve a user ID to a display name. Returns empty string when
+  // we have no name (so `||` fallbacks to booking.userName etc. work cleanly).
   function resolveUserName(userId: string | null | undefined): string {
     if (!userId) return "";
     const u = convexUsers?.find((x) => x._id === userId);
-    return u?.fullName || u?.email || userId;
+    return u?.fullName || u?.email || "";
   }
 
   const createBooking = useMutation(api.bookings.create);
@@ -1241,7 +1242,7 @@ export default function CalendarPage() {
                 >
                   <SelectTrigger>
                     <SelectValue>
-                      {resolveUserName(bookForUserId ?? me?._id)}
+                      {resolveUserName(bookForUserId ?? me?._id) || "Member"}
                       {(!bookForUserId || bookForUserId === me?._id) ? " (Myself)" : ""}
                     </SelectValue>
                   </SelectTrigger>
@@ -1250,7 +1251,7 @@ export default function CalendarPage() {
                       const isSelf = m.userId === me?._id;
                       return (
                         <SelectItem key={m._id} value={m.userId}>
-                          {resolveUserName(m.userId)}{isSelf ? " (Myself)" : ""}
+                          {resolveUserName(m.userId) || "Unknown"}{isSelf ? " (Myself)" : ""}
                         </SelectItem>
                       );
                     })}
@@ -1550,7 +1551,9 @@ export default function CalendarPage() {
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   This slot is already booked
-                  {showNames ? ` by ${resolveUserName(booking.userId) || booking.userName}` : ""}.
+                  {showNames
+                    ? ` by ${booking.userName || resolveUserName(booking.userId)}`
+                    : ""}.
                 </p>
                 <div className="space-y-1 text-sm">
                   <p><strong>Room:</strong> {room?.name}</p>
