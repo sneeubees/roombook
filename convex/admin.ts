@@ -2,6 +2,26 @@ import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 
 /**
+ * One-shot: mark every existing user's email as verified. Run once after
+ * turning on the Password verify flow so long-standing accounts aren't
+ * locked out by the new OTP requirement.
+ */
+export const backfillEmailVerification = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    let updated = 0;
+    for (const u of users) {
+      if (!(u as { emailVerificationTime?: number }).emailVerificationTime) {
+        await ctx.db.patch(u._id, { emailVerificationTime: Date.now() });
+        updated++;
+      }
+    }
+    return { updated, total: users.length };
+  },
+});
+
+/**
  * DEV-ONLY: Bootstrap the first super admin by email, activate any org they
  * belong to. Only runs if no super admin currently exists.
  */
