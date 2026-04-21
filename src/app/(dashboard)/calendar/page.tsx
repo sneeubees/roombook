@@ -347,6 +347,20 @@ export default function CalendarPage() {
 
   async function handleCancelBooking() {
     if (!selectedBookingId || !user?.id) return;
+    const booking = bookings?.find((b) => b._id === selectedBookingId);
+    const room = booking ? rooms?.find((r) => r._id === booking.roomId) : null;
+    const slotLabel = booking
+      ? booking.slotType === "session" && booking.startTime && booking.endTime
+        ? `${booking.startTime}–${booking.endTime}`
+        : booking.slotType === "full_day"
+          ? "Full Day"
+          : booking.slotType.toUpperCase()
+      : "";
+    const dateLabel = booking ? format(new Date(booking.date), "EEE, d MMM yyyy") : "";
+    const confirmed = window.confirm(
+      `Cancel this booking?\n\n${room?.name ?? ""} — ${dateLabel} — ${slotLabel}\n\nThis cannot be undone.`
+    );
+    if (!confirmed) return;
     setIsSubmitting(true);
     try {
       const result = await cancelBooking({
