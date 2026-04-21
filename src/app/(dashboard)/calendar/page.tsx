@@ -4,7 +4,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   format,
   addMonths,
@@ -155,6 +155,13 @@ export default function CalendarPage() {
     api.roomBlocks.listByOrg,
     orgId ? { orgId, startDate: queryStart, endDate: queryEnd } : "skip"
   );
+
+  // Auto-pin the selection when there's exactly one room.
+  useEffect(() => {
+    if (rooms && rooms.length === 1 && selectedRoom !== rooms[0]._id) {
+      setSelectedRoom(rooms[0]._id);
+    }
+  }, [rooms, selectedRoom]);
 
   // Get Convex user profiles for org members (for name resolution)
   const convexUsers = useQuery(
@@ -984,26 +991,33 @@ export default function CalendarPage() {
 
       {/* Room filter tabs */}
       {rooms && rooms.length > 0 && (
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={selectedRoom === null ? "default" : "outline"}
-            size="sm"
-            onClick={() => setSelectedRoom(null)}
-          >
-            All Rooms
-          </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {rooms.length > 1 && (
+            <Button
+              variant={selectedRoom === null ? "default" : "outline"}
+              size="sm"
+              onClick={() => setSelectedRoom(null)}
+            >
+              All Rooms
+            </Button>
+          )}
           {rooms.map((room) => {
             const rc = getColorForRoom(room._id);
+            const isActive = selectedRoom === room._id;
             return (
               <Button
                 key={room._id}
-                variant={selectedRoom === room._id ? "default" : "outline"}
+                variant={isActive ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSelectedRoom(selectedRoom === room._id ? null : room._id)}
+                onClick={() => {
+                  // With a single room, keep it pinned.
+                  if (rooms.length === 1) return;
+                  setSelectedRoom(isActive ? null : room._id);
+                }}
                 className={cn(
-                  selectedRoom !== room._id && rc.bgLight,
-                  selectedRoom !== room._id && rc.text,
-                  selectedRoom !== room._id && "hover:opacity-80"
+                  !isActive && rc.bgLight,
+                  !isActive && rc.text,
+                  !isActive && "hover:opacity-80"
                 )}
               >
                 <span className={cn("inline-block h-2 w-2 rounded-full mr-1.5", rc.bgMine)} />
@@ -1014,6 +1028,17 @@ export default function CalendarPage() {
               </Button>
             );
           })}
+          {isOwner && (
+            <Link
+              href="/rooms/new"
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "ml-auto"
+              )}
+            >
+              + Add a room
+            </Link>
+          )}
         </div>
       )}
 
