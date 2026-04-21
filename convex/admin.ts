@@ -2,22 +2,53 @@ import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 
 /**
- * One-shot: mark every existing user's email as verified. Run once after
- * turning on the Password verify flow so long-standing accounts aren't
- * locked out by the new OTP requirement.
+ * One-shot: mark every existing password-auth account as already verified
+ * so Convex Auth's `verify` flow doesn't send those users through the OTP
+ * step on sign-in. Also sets emailVerificationTime on the user row for
+ * good measure.
+ *
+ * Run once after turning on Password({ verify: ResendOTP }).
  */
 export const backfillEmailVerification = mutation({
   args: {},
   handler: async (ctx) => {
     const users = await ctx.db.query("users").collect();
-    let updated = 0;
+    let usersUpdated = 0;
     for (const u of users) {
       if (!(u as { emailVerificationTime?: number }).emailVerificationTime) {
         await ctx.db.patch(u._id, { emailVerificationTime: Date.now() });
-        updated++;
+        usersUpdated++;
       }
     }
-    return { updated, total: users.length };
+
+    // Convex Auth's signIn check is on authAccounts.emailVerified — that's
+    // the field the Password provider gates on. Set it to the account's
+    // email (which is what the verifyCodeAndSignIn mutation does).
+    const accounts = await ctx.db.query("authAccounts").collect();
+    let accountsUpdated = 0;
+    for (const a of accounts) {
+      const acct = a as unknown as {
+        provider?: string;
+        providerAccountId?: string;
+        emailVerified?: string;
+      };
+      if (acct.provider !== "password") continue;
+      if (!acct.emailVerified) {
+        await ctx.db.patch(a._id, {
+          emailVerified: acct.providerAccountId,
+        });
+        accountsUpdated++;
+      }
+    }
+
+    return {
+      usersUpdated,
+      totalUsers: users.length,
+      accountsUpdated,
+      totalPasswordAccounts: accounts.filter(
+        (a) => (a as unknown as { provider?: string }).provider === "password"
+      ).length,
+    };
   },
 });
 
