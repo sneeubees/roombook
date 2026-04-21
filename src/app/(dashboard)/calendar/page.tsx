@@ -1210,26 +1210,6 @@ export default function CalendarPage() {
         </CardContent>
       </Card>
 
-      {/* Legend */}
-      <div className="flex flex-wrap gap-4 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-gray-200 border border-gray-300" />
-          <span>Available (in room colour)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-gray-500 ring-1 ring-white" />
-          <span>Your Booking</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-gray-400" />
-          <span>Other&apos;s Booking</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded bg-red-500" />
-          <span>Blocked</span>
-        </div>
-      </div>
-
       {/* Booking Dialog */}
       <Dialog open={showBookingDialog} onOpenChange={setShowBookingDialog}>
         <DialogContent>
