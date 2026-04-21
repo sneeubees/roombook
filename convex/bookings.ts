@@ -141,6 +141,30 @@ export const create = mutation({
 
     // Determine who the booking is for
     const targetUserId: Id<"users"> = args.forUserId ?? actorId;
+
+    if (args.forUserId && args.forUserId !== actorId) {
+      // Booking on behalf of someone — only owner / manager / super admin allowed.
+      const actorMembership = await ctx.db
+        .query("memberships")
+        .withIndex("by_org_user", (q) =>
+          q.eq("orgId", args.orgId).eq("userId", actorId)
+        )
+        .unique();
+      const actorProfile = await ctx.db
+        .query("userProfiles")
+        .withIndex("by_user", (q) => q.eq("userId", actorId))
+        .unique();
+      const isPrivileged =
+        actorProfile?.isSuperAdmin === true ||
+        actorMembership?.role === "owner" ||
+        actorMembership?.role === "manager";
+      if (!isPrivileged) {
+        throw new Error(
+          "Only an owner, manager, or super admin can book on behalf of another user"
+        );
+      }
+    }
+
     const targetUser = await ctx.db.get(targetUserId);
     if (!targetUser) throw new Error("Target user not found");
     const targetUserName =

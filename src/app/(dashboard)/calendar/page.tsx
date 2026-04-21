@@ -88,7 +88,7 @@ function durationLabel(start: string, end: string): string {
 export default function CalendarPage() {
   const me = useQuery(api.users.currentUser);
   const { orgId, convexOrg } = useOrgData();
-  const { isOwner } = useUserRole();
+  const { isOwner, canManage } = useUserRole();
   const showNames = isOwner || (convexOrg?.showBookerNames ?? false);
   const tc = getThemeColors(convexOrg?.calendarTheme);
 
@@ -103,7 +103,7 @@ export default function CalendarPage() {
   // Org members (for name resolution and "book for" dropdown)
   const memberships = useQuery(
     api.organizations.listMembershipsByOrg,
-    isOwner && orgId ? { orgId } : "skip"
+    canManage && orgId ? { orgId } : "skip"
   );
   const memberUserIds = useMemo(
     () => (memberships ?? []).map((m) => m.userId),
@@ -315,7 +315,7 @@ export default function CalendarPage() {
 
       // Determine who the booking is for
       const forUserId =
-        isOwner && bookForUserId && bookForUserId !== me._id
+        canManage && bookForUserId && bookForUserId !== me._id
           ? bookForUserId
           : undefined;
 
@@ -1240,8 +1240,8 @@ export default function CalendarPage() {
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* Owner: Book on behalf of a member */}
-            {isOwner && memberships && memberships.length > 0 && (
+            {/* Owner / Manager / Super Admin: Book on behalf of a member */}
+            {canManage && memberships && memberships.length > 0 && (
               <div className="space-y-2">
                 <Label>Book For</Label>
                 <Select
