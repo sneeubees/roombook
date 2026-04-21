@@ -58,6 +58,14 @@ export default function InvoicesPage() {
 
   const generateInvoices = useAction(api.invoices.generateNow);
   const regenerateForPeriod = useAction(api.invoices.regenerateForPeriod);
+
+  // Strip Convex's "[CONVEX X(foo)] [Request ID: ...] Server Error Uncaught
+  // Error: ..." prefix so toasts show the real message only.
+  function cleanErrorMessage(msg: string): string {
+    // Find the last occurrence of "Error: " which wraps the actual cause.
+    const match = msg.match(/(?:Uncaught )?Error:\s*([\s\S]*?)\s*(?:at handler.*)?$/);
+    return match?.[1]?.trim() || msg;
+  }
   const paymentRuns = useQuery(
     api.invoices.listPaymentRuns,
     isOwner && orgId ? { orgId } : "skip"
@@ -247,11 +255,16 @@ export default function InvoicesPage() {
                           toast.success(`Generated ${count} invoice(s) for ${run.label}`);
                           setShowRunsDialog(false);
                         } catch (err) {
-                          toast.error(
-                            err instanceof Error
-                              ? err.message
-                              : "Failed to generate"
-                          );
+                          const msg = err instanceof Error ? err.message : "";
+                          if (msg.includes("No billable bookings")) {
+                            toast.info(`Nothing to invoice for ${run.label}`, {
+                              description: "There are no billable bookings in this period.",
+                            });
+                          } else {
+                            toast.error("Could not generate invoices", {
+                              description: cleanErrorMessage(msg) || "Unknown error",
+                            });
+                          }
                         } finally {
                           setIsGenerating(false);
                         }
@@ -345,9 +358,10 @@ export default function InvoicesPage() {
                   setRegenConfirm(null);
                   setShowRunsDialog(false);
                 } catch (err) {
-                  toast.error(
-                    err instanceof Error ? err.message : "Failed to regenerate"
-                  );
+                  const msg = err instanceof Error ? err.message : "";
+                  toast.error("Could not regenerate invoices", {
+                    description: cleanErrorMessage(msg) || "Unknown error",
+                  });
                 } finally {
                   setIsGenerating(false);
                 }
