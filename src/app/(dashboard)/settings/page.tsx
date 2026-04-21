@@ -307,7 +307,7 @@ export default function SettingsPage() {
           <CardHeader>
             <CardTitle>Booking Settings</CardTitle>
             <CardDescription>
-              Configure how bookings appear to your staff.
+              Configure how bookings appear to your users.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
