@@ -33,6 +33,14 @@ export const create = mutation({
     token: v.string(),
   },
   handler: async (ctx, args) => {
+    // Enforce at most one Owner per organisation. Only Manager/Booker invites
+    // are accepted via the app; Owner transfers must be done manually.
+    if (args.role === "owner") {
+      throw new Error(
+        "Each organisation can only have one Owner. Invite the new person as Manager or Booker instead."
+      );
+    }
+
     // 7 day expiry
     const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
 

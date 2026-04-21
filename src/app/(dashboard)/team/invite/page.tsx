@@ -40,7 +40,7 @@ export default function InvitePage() {
   const createInvitation = useMutation(api.invitations.create);
 
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"therapist" | "owner" | "manager">("therapist");
+  const [role, setRole] = useState<"therapist" | "manager">("therapist");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -78,12 +78,14 @@ export default function InvitePage() {
   }
 
   return (
-    <div className="max-w-md">
+    <div className="max-w-2xl">
       <Card>
         <CardHeader>
           <CardTitle>Invite Team Member</CardTitle>
           <CardDescription>
-            Send an invitation link to add someone to your practice.
+            Send an invitation link to add someone to your practice. Each
+            organisation has only one Owner, so new invitees can be a Manager
+            or a Booker.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -105,26 +107,21 @@ export default function InvitePage() {
               <Select
                 value={role}
                 onValueChange={(v) =>
-                  v && setRole(v as "therapist" | "owner" | "manager")
+                  v && setRole(v as "therapist" | "manager")
                 }
               >
-                <SelectTrigger>
+                <SelectTrigger className="w-full">
                   <SelectValue>
-                    {role === "therapist" ? "Booker" : role === "manager" ? "Manager" : "Owner"}
+                    {role === "therapist" ? "Booker" : "Manager"}
                   </SelectValue>
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="min-w-[560px]">
                   <SelectItem value="therapist">
                     Booker — book rooms and view own invoices
                   </SelectItem>
                   <SelectItem value="manager">
                     Manager — manage bookings, rooms, team, invoices (no Settings/Reports)
                   </SelectItem>
-                  {isOwner && (
-                    <SelectItem value="owner">
-                      Owner — full access including Settings and Reports
-                    </SelectItem>
-                  )}
                 </SelectContent>
               </Select>
             </div>
