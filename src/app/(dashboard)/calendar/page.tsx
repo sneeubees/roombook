@@ -1010,9 +1010,9 @@ export default function CalendarPage() {
         </div>
       )}
 
-      {/* Calendar Grid */}
-      <Card>
-        <CardContent className="p-0">
+      {/* Calendar Grid — tinted to match the selected room */}
+      <Card className={cn(selectedRoom && getColorForRoom(selectedRoom).bgLight)}>
+        <CardContent className={cn("p-0", selectedRoom && getColorForRoom(selectedRoom).bgLight)}>
           {/* MONTH VIEW */}
           {viewMode === "month" && (() => {
             const singleRoom = selectedRoom ? rooms?.find((r) => r._id === selectedRoom) : null;
@@ -1038,7 +1038,8 @@ export default function CalendarPage() {
                           "border-b border-r p-1",
                           singleRoom ? "min-h-[160px]" : "min-h-[100px]",
                           !inMonth && "bg-muted/30",
-                          isPast && "opacity-50"
+                          isPast && "opacity-50",
+                          today && singleRoom && getColorForRoom(singleRoom._id).bgTint
                         )}
                       >
                         <div
@@ -1082,7 +1083,7 @@ export default function CalendarPage() {
                         "border-b border-r p-2",
                         singleRoom ? "min-h-[220px]" : "min-h-[140px]",
                         isPast && "opacity-50",
-                        today && "bg-primary/5"
+                        today && (singleRoom ? getColorForRoom(singleRoom._id).bgTint : "bg-primary/5")
                       )}
                     >
                       <div className="flex items-center gap-2 mb-2">
