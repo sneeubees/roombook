@@ -135,7 +135,7 @@ export default function ReportsPage() {
     if (!rooms || !bookings) return [];
     return rooms.map((room) => {
       const roomBookings = bookings.filter(
-        (b) => b.roomId === room._id && b.isBillable
+        (b) => b.roomId === room._id && b.isBillable && !b.excludeFromInvoice
       );
       const revenue = roomBookings.reduce((sum, b) => sum + b.rateApplied, 0);
       return {
@@ -170,7 +170,7 @@ export default function ReportsPage() {
         revenue: 0,
       };
       existing.count++;
-      if (b.isBillable) existing.revenue += b.rateApplied;
+      if (b.isBillable && !b.excludeFromInvoice) existing.revenue += b.rateApplied;
       bookerMap.set(b.userId, existing);
     });
     return Array.from(bookerMap.values()).sort(
@@ -180,7 +180,7 @@ export default function ReportsPage() {
 
   // KPIs
   const totalRevenue = bookings
-    ?.filter((b) => b.isBillable)
+    ?.filter((b) => b.isBillable && !b.excludeFromInvoice)
     .reduce((sum, b) => sum + b.rateApplied, 0) ?? 0;
   const totalBookings = bookings?.length ?? 0;
   const activeRooms = rooms?.filter((r) => r.isActive).length ?? 0;
