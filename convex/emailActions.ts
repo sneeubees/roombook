@@ -148,9 +148,10 @@ export const sendWaitlistNotification = internalAction({
 
     let ownerEmail: string | undefined;
     if (args.orgId) {
-      ownerEmail = await ctx.runQuery(internal.emailHelpers.getOrgOwnerEmail, {
+      const r: any = await ctx.runQuery(internal.emailHelpers.getOrgOwnerEmail, {
         orgId: args.orgId,
       });
+      ownerEmail = r ?? undefined;
     }
 
     try {
