@@ -35,6 +35,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Lock, CalendarDays, X, Download, Pencil } from "lucide-react";
 import { Label } from "@/components/ui/label";
@@ -63,6 +64,16 @@ export default function BookingsPage() {
   const hasHistory = can("history");
   const cancelBooking = useMutation(api.bookings.cancel);
   const editBooking = useMutation(api.bookings.editDetails);
+  const setExcludeFromInvoice = useMutation(api.bookings.setExcludeFromInvoice);
+  const invoicedBookingIds = useQuery(
+    api.bookings.getInvoicedBookingIds,
+    isOwner && orgId ? { orgId } : "skip"
+  );
+  const invoicedSet = new Set(invoicedBookingIds ?? []);
+  const [excludeConfirm, setExcludeConfirm] = useState<{
+    id: Id<"bookings">;
+    exclude: boolean;
+  } | null>(null);
 
   const [period, setPeriod] = useState<"today" | "week" | "month" | "all">(
     hasHistory ? "week" : "today"
@@ -194,6 +205,7 @@ export default function BookingsPage() {
                       {isOwner && <TableHead>Booker</TableHead>}
                       <TableHead>Rate</TableHead>
                       <TableHead>Status</TableHead>
+                      {isOwner && <TableHead className="text-center">Exclude from Invoice</TableHead>}
                       <TableHead></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -253,6 +265,32 @@ export default function BookingsPage() {
                                   </Badge>
                                 )}
                             </TableCell>
+                            {isOwner && (
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  checked={booking.excludeFromInvoice ?? false}
+                                  onCheckedChange={(v) => {
+                                    const nextExclude = v === true;
+                                    if (nextExclude && invoicedSet.has(booking._id)) {
+                                      setExcludeConfirm({ id: booking._id, exclude: nextExclude });
+                                    } else {
+                                      setExcludeFromInvoice({
+                                        id: booking._id,
+                                        exclude: nextExclude,
+                                        actorId: user?.id,
+                                        actorName: user?.fullName ?? undefined,
+                                      }).then(() =>
+                                        toast.success(
+                                          nextExclude
+                                            ? "Excluded from future invoices"
+                                            : "Included in future invoices"
+                                        )
+                                      );
+                                    }
+                                  }}
+                                />
+                              </TableCell>
+                            )}
                             <TableCell>
                               <div className="flex items-center gap-1">
                                 {booking.status === "confirmed" && (isOwner || booking.userId === user?.id) && (
@@ -349,6 +387,44 @@ export default function BookingsPage() {
               disabled={isSubmitting}
             >
               {isSubmitting ? "Cancelling..." : "Confirm Cancel"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Exclude-from-invoice warning when booking is already on an invoice */}
+      <Dialog open={excludeConfirm !== null} onOpenChange={(open) => !open && setExcludeConfirm(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Heads up — this booking is already invoiced</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            This booking has already been included on an existing invoice. Excluding
+            it will only take effect when a <strong>new</strong> invoice is generated —
+            the existing invoice is unchanged.
+          </p>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExcludeConfirm(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={async () => {
+                if (!excludeConfirm) return;
+                try {
+                  await setExcludeFromInvoice({
+                    id: excludeConfirm.id,
+                    exclude: excludeConfirm.exclude,
+                    actorId: user?.id,
+                    actorName: user?.fullName ?? undefined,
+                  });
+                  toast.success("Excluded from future invoices");
+                  setExcludeConfirm(null);
+                } catch (err) {
+                  toast.error(err instanceof Error ? err.message : "Failed");
+                }
+              }}
+            >
+              OK, exclude from future invoices
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -119,6 +119,9 @@ export default defineSchema({
     cancelledBy: v.optional(v.string()),
     cancellationReason: v.optional(v.string()),
     notes: v.optional(v.string()),
+    // When true, this booking is skipped by future invoice runs.
+    // Existing invoices that already contain the booking are unaffected.
+    excludeFromInvoice: v.optional(v.boolean()),
   })
     .index("by_room_date", ["roomId", "date"])
     .index("by_user_date", ["userId", "date"])
@@ -189,17 +192,23 @@ export default defineSchema({
       v.literal("sent"),
       v.literal("paid"),
       v.literal("overdue"),
-      v.literal("void")
+      v.literal("void"),
+      v.literal("cancelled")
     ),
     pdfStorageId: v.optional(v.id("_storage")),
     sentAt: v.optional(v.number()),
     paidAt: v.optional(v.number()),
     dueDate: v.optional(v.string()),
     notes: v.optional(v.string()),
+    // When an invoice is cancelled via regeneration
+    cancelledAt: v.optional(v.number()),
+    cancelledReason: v.optional(v.string()),
+    replacedByInvoiceId: v.optional(v.id("invoices")),
   })
     .index("by_org", ["orgId"])
     .index("by_user", ["userId"])
     .index("by_org_user_period", ["orgId", "userId", "periodStart"])
+    .index("by_org_period", ["orgId", "periodStart"])
     .index("by_invoiceNumber", ["invoiceNumber"]),
 
   // Invoice line items

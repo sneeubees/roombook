@@ -652,6 +652,77 @@ export const update = mutation({
   },
 });
 
+// Toggle whether a booking should be excluded from future invoice runs.
+// Returns `{ wasInvoiced }` so the UI can decide whether to warn the user.
+export const setExcludeFromInvoice = mutation({
+  args: {
+    id: v.id("bookings"),
+    exclude: v.boolean(),
+    actorId: v.optional(v.string()),
+    actorName: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const booking = await ctx.db.get(args.id);
+    if (!booking) throw new Error("Booking not found");
+
+    // Check if booking is already included on any non-cancelled invoice.
+    const lineItems = await ctx.db
+      .query("invoiceLineItems")
+      .withIndex("by_invoice")
+      .collect();
+    const matching = lineItems.filter((li) => li.bookingId === args.id);
+    let wasInvoiced = false;
+    for (const li of matching) {
+      const inv = await ctx.db.get(li.invoiceId);
+      if (inv && inv.status !== "cancelled") {
+        wasInvoiced = true;
+        break;
+      }
+    }
+
+    await ctx.db.patch(args.id, { excludeFromInvoice: args.exclude });
+
+    if (args.actorId) {
+      await ctx.db.insert("activityLogs", {
+        orgId: booking.orgId,
+        actorId: args.actorId,
+        actorName: args.actorName ?? "Unknown",
+        actorRole: args.actorId === booking.userId ? "booker" : "owner_or_manager",
+        action: args.exclude ? "booking_invoice_excluded" : "booking_invoice_included",
+        targetType: "booking",
+        targetId: args.id,
+        targetName: `Booking on ${booking.date}`,
+        details: { wasInvoiced },
+      });
+    }
+
+    return { wasInvoiced };
+  },
+});
+
+// Returns the set of booking IDs that are on an existing non-cancelled invoice.
+// Used by the bookings page to warn users when they toggle "exclude from invoice".
+export const getInvoicedBookingIds = query({
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const invoices = await ctx.db
+      .query("invoices")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .collect();
+    const activeInvoiceIds = new Set(
+      invoices.filter((i) => i.status !== "cancelled").map((i) => i._id)
+    );
+    const lineItems = await ctx.db.query("invoiceLineItems").collect();
+    const bookingIds = new Set<string>();
+    for (const li of lineItems) {
+      if (activeInvoiceIds.has(li.invoiceId)) {
+        bookingIds.add(li.bookingId);
+      }
+    }
+    return Array.from(bookingIds);
+  },
+});
+
 export const editDetails = mutation({
   args: {
     id: v.id("bookings"),

@@ -25,8 +25,6 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +45,7 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
   paid: "outline",
   overdue: "destructive",
   void: "secondary",
+  cancelled: "destructive",
 };
 
 export default function InvoicesPage() {
@@ -75,10 +74,20 @@ export default function InvoicesPage() {
   );
 
   const generateInvoices = useAction(api.invoices.generateNow);
+  const regenerateForPeriod = useAction(api.invoices.regenerateForPeriod);
+  const paymentRuns = useQuery(
+    api.invoices.listPaymentRuns,
+    isOwner && orgId ? { orgId } : "skip"
+  );
   const [isGenerating, setIsGenerating] = useState(false);
-  const [showDateDialog, setShowDateDialog] = useState(false);
-  const [genStartDate, setGenStartDate] = useState("");
-  const [genEndDate, setGenEndDate] = useState("");
+  const [showRunsDialog, setShowRunsDialog] = useState(false);
+  const [regenConfirm, setRegenConfirm] = useState<{
+    key: string;
+    label: string;
+    periodStart: string;
+    periodEnd: string;
+    activeCount: number;
+  } | null>(null);
   const invoiceMode = convexOrg?.invoiceMode ?? "auto";
 
   const bookerIds = useMemo(() => {
@@ -109,30 +118,14 @@ export default function InvoicesPage() {
           <Button
             variant="outline"
             disabled={isGenerating}
-            onClick={() => {
-              // Always show date dialog — for manual it's blank, for auto it's pre-filled
-              if (invoiceMode === "auto" && convexOrg) {
-                const today = new Date();
-                const invoiceDay = convexOrg.invoiceDayOfMonth ?? 1;
-                let pEnd = new Date(today.getFullYear(), today.getMonth(), invoiceDay);
-                if (pEnd > today) pEnd = new Date(today.getFullYear(), today.getMonth() - 1, invoiceDay);
-                let pStart: Date;
-                if (invoiceDay >= 28) {
-                  pStart = new Date(pEnd.getFullYear(), pEnd.getMonth(), 1);
-                } else {
-                  pStart = new Date(pEnd.getFullYear(), pEnd.getMonth() - 1, invoiceDay + 1);
-                }
-                setGenStartDate(pStart.toISOString().split("T")[0]);
-                setGenEndDate(pEnd.toISOString().split("T")[0]);
-              } else {
-                setGenStartDate("");
-                setGenEndDate("");
-              }
-              setShowDateDialog(true);
-            }}
+            onClick={() => setShowRunsDialog(true)}
           >
             <FilePlus className="h-4 w-4 mr-2" />
-            {isGenerating ? "Generating..." : "Generate Invoices"}
+            {isGenerating
+              ? "Generating..."
+              : invoiceMode === "auto"
+                ? "Generate / Regenerate Invoices"
+                : "Generate / Regenerate Invoices"}
           </Button>
         )}
       </div>
@@ -227,62 +220,157 @@ export default function InvoicesPage() {
         </CardContent>
       </Card>
 
-      {/* Date Range Dialog for Manual Invoice Generation */}
-      <Dialog open={showDateDialog} onOpenChange={setShowDateDialog}>
+      {/* Payment Runs Dialog — pick the month to generate / regenerate */}
+      <Dialog open={showRunsDialog} onOpenChange={setShowRunsDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Generate Invoices</DialogTitle>
+            <DialogTitle>Generate / Regenerate Invoices</DialogTitle>
             <DialogDescription>
-              Select the billing period for invoice generation.
+              Pick the payment run (month). Runs whose invoice date has not
+              arrived yet are disabled. If invoices already exist for a run you
+              can regenerate them — the old invoices will be cancelled and new
+              ones issued with new invoice numbers.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input
-                  type="date"
-                  value={genStartDate}
-                  onChange={(e) => setGenStartDate(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>End Date</Label>
-                <Input
-                  type="date"
-                  value={genEndDate}
-                  onChange={(e) => setGenEndDate(e.target.value)}
-                />
-              </div>
-            </div>
+          <div className="space-y-1 max-h-[420px] overflow-y-auto">
+            {(paymentRuns ?? []).map((run) => {
+              const isDisabled = run.isFuture;
+              const hasActive = run.activeInvoiceCount > 0;
+              return (
+                <button
+                  key={run.key}
+                  type="button"
+                  disabled={isDisabled || isGenerating}
+                  onClick={() => {
+                    if (hasActive) {
+                      setRegenConfirm({
+                        key: run.key,
+                        label: run.label,
+                        periodStart: run.periodStart,
+                        periodEnd: run.periodEnd,
+                        activeCount: run.activeInvoiceCount,
+                      });
+                    } else {
+                      // Generate fresh
+                      (async () => {
+                        if (!orgId) return;
+                        setIsGenerating(true);
+                        try {
+                          const count = await generateInvoices({
+                            orgId,
+                            startDate: run.periodStart,
+                            endDate: run.periodEnd,
+                          });
+                          toast.success(`Generated ${count} invoice(s) for ${run.label}`);
+                          setShowRunsDialog(false);
+                        } catch (err) {
+                          toast.error(
+                            err instanceof Error
+                              ? err.message
+                              : "Failed to generate"
+                          );
+                        } finally {
+                          setIsGenerating(false);
+                        }
+                      })();
+                    }
+                  }}
+                  className={
+                    "w-full flex items-center justify-between gap-3 rounded-md px-3 py-2 text-left border transition-colors " +
+                    (isDisabled
+                      ? "opacity-50 cursor-not-allowed bg-muted/30"
+                      : "hover:bg-muted/40 cursor-pointer")
+                  }
+                >
+                  <div>
+                    <div className="font-medium text-sm">{run.label}</div>
+                    <div className="text-xs text-muted-foreground">
+                      Period: {format(new Date(run.periodStart), "d MMM")} – {format(new Date(run.periodEnd), "d MMM yyyy")} · Run date: {format(new Date(run.runDate), "d MMM yyyy")}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isDisabled && (
+                      <Badge variant="secondary" className="text-[10px]">
+                        Scheduled
+                      </Badge>
+                    )}
+                    {!isDisabled && hasActive && (
+                      <Badge variant="default" className="text-[10px]">
+                        {run.activeInvoiceCount} active · Regenerate
+                      </Badge>
+                    )}
+                    {!isDisabled && !hasActive && run.cancelledInvoiceCount > 0 && (
+                      <Badge variant="outline" className="text-[10px]">
+                        {run.cancelledInvoiceCount} cancelled · Generate
+                      </Badge>
+                    )}
+                    {!isDisabled && !hasActive && run.cancelledInvoiceCount === 0 && (
+                      <Badge variant="outline" className="text-[10px]">
+                        Not generated
+                      </Badge>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDateDialog(false)}>
+            <Button variant="outline" onClick={() => setShowRunsDialog(false)}>
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Regenerate Confirmation */}
+      <Dialog
+        open={regenConfirm !== null}
+        onOpenChange={(open) => !open && setRegenConfirm(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Regenerate invoices for {regenConfirm?.label}?</DialogTitle>
+            <DialogDescription>
+              {regenConfirm?.activeCount ?? 0} invoice(s) already exist for this
+              payment run. They will be <strong>cancelled</strong> and new invoices
+              will be created with new invoice numbers.
+              <br />
+              <br />
+              Cancelled invoices stay in the list for audit; reporting uses only
+              the live (non-cancelled) invoices.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRegenConfirm(null)}>
               Cancel
             </Button>
             <Button
-              disabled={isGenerating || !genStartDate || !genEndDate}
+              variant="destructive"
+              disabled={isGenerating}
               onClick={async () => {
-                if (!orgId) return;
+                if (!orgId || !regenConfirm) return;
                 setIsGenerating(true);
                 try {
-                  const count = await generateInvoices({
+                  const result = await regenerateForPeriod({
                     orgId,
-                    startDate: genStartDate,
-                    endDate: genEndDate,
+                    periodStart: regenConfirm.periodStart,
+                    periodEnd: regenConfirm.periodEnd,
                   });
-                  toast.success(`Generated ${count} invoice(s)`);
-                  setShowDateDialog(false);
-                } catch (error) {
+                  toast.success(
+                    `Cancelled ${result.cancelled}, generated ${result.created} new invoice(s) for ${regenConfirm.label}`
+                  );
+                  setRegenConfirm(null);
+                  setShowRunsDialog(false);
+                } catch (err) {
                   toast.error(
-                    error instanceof Error ? error.message : "Failed to generate"
+                    err instanceof Error ? err.message : "Failed to regenerate"
                   );
                 } finally {
                   setIsGenerating(false);
                 }
               }}
             >
-              {isGenerating ? "Generating..." : "Generate"}
+              {isGenerating ? "Regenerating..." : "Yes, regenerate"}
             </Button>
           </DialogFooter>
         </DialogContent>

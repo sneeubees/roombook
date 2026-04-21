@@ -388,51 +388,65 @@ export default function SettingsPage() {
           </CardHeader>
           {invoicesEnabled && (
             <CardContent className="space-y-4">
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <Label>Generation Mode</Label>
-                <Select
-                  value={invoiceMode}
-                  onValueChange={(v) => v && setInvoiceMode(v as "auto" | "manual")}
-                >
-                  <SelectTrigger>
-                    <SelectValue>
-                      {invoiceMode === "auto" ? "Automatic (monthly)" : "Manual (choose dates)"}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="auto">
-                      Automatic — generate on a specific day each month
-                    </SelectItem>
-                    <SelectItem value="manual">
-                      Manual — generate with custom date range
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="invoiceMode"
+                      value="auto"
+                      checked={invoiceMode === "auto"}
+                      onChange={() => setInvoiceMode("auto")}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="text-sm font-medium">Automatic</div>
+                      <div className="text-xs text-muted-foreground">
+                        Invoices are generated automatically on the day below, each month.
+                      </div>
+                    </div>
+                  </label>
+                  <label className="flex items-start gap-2 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="invoiceMode"
+                      value="manual"
+                      checked={invoiceMode === "manual"}
+                      onChange={() => setInvoiceMode("manual")}
+                      className="mt-1"
+                    />
+                    <div>
+                      <div className="text-sm font-medium">Manual</div>
+                      <div className="text-xs text-muted-foreground">
+                        Invoices are only generated when you click Generate / Regenerate on the Invoices page.
+                      </div>
+                    </div>
+                  </label>
+                </div>
               </div>
 
-              {invoiceMode === "auto" && (
-                <div className="space-y-2">
-                  <Label htmlFor="invoiceDay">
-                    Invoice Day of Month (1-28)
-                  </Label>
-                  <Input
-                    id="invoiceDay"
-                    type="number"
-                    min="1"
-                    max="28"
-                    value={invoiceDayOfMonth}
-                    onChange={(e) => setInvoiceDayOfMonth(e.target.value)}
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    {(() => {
-                      const d = parseInt(invoiceDayOfMonth);
-                      const startDay = d + 1 > 28 ? 1 : d + 1;
-                      const startMonth = d + 1 > 28 ? "current" : "previous";
-                      return `Billing period: ${startDay}${startDay === 1 ? "st" : startDay === 2 ? "nd" : startDay === 3 ? "rd" : "th"} of ${startMonth} month → ${d}${d === 1 ? "st" : d === 2 ? "nd" : d === 3 ? "rd" : "th"} of current month`;
-                    })()}
-                  </p>
-                </div>
-              )}
+              <div className="space-y-2">
+                <Label htmlFor="invoiceDay">
+                  Invoice Day of Month (1-28)
+                </Label>
+                <Input
+                  id="invoiceDay"
+                  type="number"
+                  min="1"
+                  max="28"
+                  value={invoiceDayOfMonth}
+                  onChange={(e) => setInvoiceDayOfMonth(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {(() => {
+                    const d = parseInt(invoiceDayOfMonth);
+                    const startDay = d + 1 > 28 ? 1 : d + 1;
+                    const startMonth = d + 1 > 28 ? "current" : "previous";
+                    return `Billing period: ${startDay}${startDay === 1 ? "st" : startDay === 2 ? "nd" : startDay === 3 ? "rd" : "th"} of ${startMonth} month → ${d}${d === 1 ? "st" : d === 2 ? "nd" : d === 3 ? "rd" : "th"} of current month.${invoiceMode === "manual" ? " Manual runs may be triggered any time on or after this day." : ""}`;
+                  })()}
+                </p>
+              </div>
 
               <div className="space-y-2">
                 <Label htmlFor="invoicePrefix">Invoice Prefix</Label>

@@ -1,6 +1,6 @@
 import { v } from "convex/values";
 import { action, mutation, query } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 export const listByOrg = query({
   args: { orgId: v.id("organizations") },
@@ -49,7 +49,8 @@ export const updateStatus = mutation({
       v.literal("sent"),
       v.literal("paid"),
       v.literal("overdue"),
-      v.literal("void")
+      v.literal("void"),
+      v.literal("cancelled")
     ),
   },
   handler: async (ctx, args) => {
@@ -60,7 +61,144 @@ export const updateStatus = mutation({
     if (args.status === "sent") {
       updates.sentAt = Date.now();
     }
+    if (args.status === "cancelled") {
+      updates.cancelledAt = Date.now();
+    }
     await ctx.db.patch(args.id, updates);
+  },
+});
+
+// List payment runs (months) and whether invoices were generated for each.
+// Used by the regenerate dialog. Returns runs going back 12 months + the upcoming run.
+export const listPaymentRuns = query({
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const org = await ctx.db.get(args.orgId);
+    if (!org) return [];
+    const invoiceDay = org.invoiceDayOfMonth ?? 1;
+
+    const invoices = await ctx.db
+      .query("invoices")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .collect();
+
+    // Build the last 13 runs (current + 12 past).
+    const runs: Array<{
+      key: string; // "YYYY-MM" identifier for the run's END month
+      runDate: string; // YYYY-MM-DD — the invoice day for that run
+      periodStart: string;
+      periodEnd: string;
+      label: string; // "April 2026"
+      activeInvoiceCount: number;
+      cancelledInvoiceCount: number;
+      totalInvoiceCount: number;
+      isFuture: boolean; // true if runDate > today (generation disabled)
+    }> = [];
+
+    const today = new Date();
+    const todayStr = today.toISOString().split("T")[0];
+
+    for (let offset = 0; offset < 13; offset++) {
+      const runMonth = new Date(today.getFullYear(), today.getMonth() - offset + 1, 1);
+      // runDate = invoiceDay of (runMonth-1); no, we use runMonth itself.
+      // Convention: "April 2026 run" fires on invoiceDay of April 2026.
+      const year = runMonth.getFullYear();
+      const month = runMonth.getMonth();
+      const pEnd = new Date(year, month, invoiceDay);
+      let pStart: Date;
+      if (invoiceDay >= 28) {
+        pStart = new Date(pEnd.getFullYear(), pEnd.getMonth(), 1);
+      } else {
+        pStart = new Date(pEnd.getFullYear(), pEnd.getMonth() - 1, invoiceDay + 1);
+      }
+      const startStr = pStart.toISOString().split("T")[0];
+      const endStr = pEnd.toISOString().split("T")[0];
+      const key = `${pEnd.getFullYear()}-${String(pEnd.getMonth() + 1).padStart(2, "0")}`;
+
+      const matching = invoices.filter(
+        (i) => i.periodStart === startStr && i.periodEnd === endStr
+      );
+      const active = matching.filter((i) => i.status !== "cancelled");
+      const cancelled = matching.filter((i) => i.status === "cancelled");
+
+      runs.push({
+        key,
+        runDate: endStr,
+        periodStart: startStr,
+        periodEnd: endStr,
+        label: pEnd.toLocaleDateString("en-ZA", { month: "long", year: "numeric" }),
+        activeInvoiceCount: active.length,
+        cancelledInvoiceCount: cancelled.length,
+        totalInvoiceCount: matching.length,
+        isFuture: endStr > todayStr,
+      });
+    }
+    return runs;
+  },
+});
+
+// Cancel all non-cancelled invoices for a given period (used before regeneration).
+export const cancelForPeriod = mutation({
+  args: {
+    orgId: v.id("organizations"),
+    periodStart: v.string(),
+    periodEnd: v.string(),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const invoices = await ctx.db
+      .query("invoices")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .collect();
+    const target = invoices.filter(
+      (i) =>
+        i.periodStart === args.periodStart &&
+        i.periodEnd === args.periodEnd &&
+        i.status !== "cancelled"
+    );
+    for (const inv of target) {
+      await ctx.db.patch(inv._id, {
+        status: "cancelled",
+        cancelledAt: Date.now(),
+        cancelledReason: args.reason ?? "Regenerated",
+      });
+    }
+    return target.length;
+  },
+});
+
+// Regenerate invoices for a specific payment run.
+// If active invoices exist for that period, they are cancelled first and new
+// invoice numbers are issued. Cancelled records are preserved for audit.
+export const regenerateForPeriod = action({
+  args: {
+    orgId: v.id("organizations"),
+    periodStart: v.string(),
+    periodEnd: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ cancelled: number; created: number }> => {
+    const cancelled: number = await ctx.runMutation(api.invoices.cancelForPeriod, {
+      orgId: args.orgId,
+      periodStart: args.periodStart,
+      periodEnd: args.periodEnd,
+      reason: "Regenerated",
+    });
+    let created = 0;
+    try {
+      created = await ctx.runAction(api.invoices.generateNow, {
+        orgId: args.orgId,
+        startDate: args.periodStart,
+        endDate: args.periodEnd,
+      });
+    } catch (err) {
+      // Period may have no billable bookings — that's OK, return 0 created.
+      if (err instanceof Error && err.message.startsWith("No billable bookings")) {
+        created = 0;
+      } else {
+        throw err;
+      }
+    }
+    return { cancelled, created };
   },
 });
 

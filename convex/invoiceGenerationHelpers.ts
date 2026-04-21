@@ -32,7 +32,8 @@ export const getBillableBookings = internalQuery({
       (b) =>
         b.date >= args.startDate &&
         b.date <= args.endDate &&
-        b.isBillable
+        b.isBillable &&
+        !b.excludeFromInvoice
     );
 
     // Enrich with room names
@@ -83,8 +84,10 @@ export const createInvoiceWithLineItems = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
-    // Check if invoice already exists for this period
-    const existing = await ctx.db
+    // Check if a non-cancelled invoice already exists for this period.
+    // Cancelled invoices are left intact for audit purposes; a new invoice
+    // gets created alongside.
+    const existingForPeriod = await ctx.db
       .query("invoices")
       .withIndex("by_org_user_period", (q) =>
         q
@@ -92,9 +95,10 @@ export const createInvoiceWithLineItems = internalMutation({
           .eq("userId", args.userId)
           .eq("periodStart", args.periodStart)
       )
-      .unique();
+      .collect();
 
-    if (existing) return existing._id;
+    const active = existingForPeriod.find((i) => i.status !== "cancelled");
+    if (active) return active._id;
 
     const invoiceId = await ctx.db.insert("invoices", {
       orgId: args.orgId,
