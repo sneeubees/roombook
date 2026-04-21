@@ -1016,7 +1016,7 @@ export default function CalendarPage() {
             const singleRoom = selectedRoom ? rooms?.find((r) => r._id === selectedRoom) : null;
             return (
               <>
-                <div className="grid grid-cols-7 border-b">
+                <div className={cn("grid grid-cols-7 border-b", singleRoom && getColorForRoom(singleRoom._id).borderSoft)}>
                   {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
                     <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">
                       {day}
@@ -1035,6 +1035,7 @@ export default function CalendarPage() {
                         className={cn(
                           "border-b border-r p-1",
                           singleRoom ? "min-h-[160px]" : "min-h-[100px]",
+                          singleRoom && getColorForRoom(singleRoom._id).borderSoft,
                           !inMonth && "bg-muted/30",
                           isPast && "opacity-50",
                           today && singleRoom && getColorForRoom(singleRoom._id).bgTint
@@ -1080,6 +1081,7 @@ export default function CalendarPage() {
                       className={cn(
                         "border-b border-r p-2",
                         singleRoom ? "min-h-[220px]" : "min-h-[140px]",
+                        singleRoom && getColorForRoom(singleRoom._id).borderSoft,
                         isPast && "opacity-50",
                         today && (singleRoom ? getColorForRoom(singleRoom._id).bgTint : "bg-primary/5")
                       )}

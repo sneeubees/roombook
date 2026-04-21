@@ -8,6 +8,7 @@ export interface RoomColor {
   bgTint: string;    // medium-light background for today's cell highlight
   text: string;      // text color
   border: string;    // border color for "mine" indicator
+  borderSoft: string; // softer border for calendar cell dividers
 }
 
 const PALETTE: RoomColor[] = [
@@ -18,6 +19,7 @@ const PALETTE: RoomColor[] = [
     bgTint: "bg-blue-100",
     text: "text-blue-900",
     border: "border-blue-700",
+    borderSoft: "border-blue-200",
   },
   {
     bg: "bg-emerald-300",
@@ -26,6 +28,7 @@ const PALETTE: RoomColor[] = [
     bgTint: "bg-emerald-100",
     text: "text-emerald-900",
     border: "border-emerald-700",
+    borderSoft: "border-emerald-200",
   },
   {
     bg: "bg-amber-300",
@@ -34,6 +37,7 @@ const PALETTE: RoomColor[] = [
     bgTint: "bg-amber-100",
     text: "text-amber-900",
     border: "border-amber-700",
+    borderSoft: "border-amber-200",
   },
   {
     bg: "bg-pink-300",
@@ -42,6 +46,7 @@ const PALETTE: RoomColor[] = [
     bgTint: "bg-pink-100",
     text: "text-pink-900",
     border: "border-pink-700",
+    borderSoft: "border-pink-200",
   },
   {
     bg: "bg-violet-300",
@@ -50,6 +55,7 @@ const PALETTE: RoomColor[] = [
     bgTint: "bg-violet-100",
     text: "text-violet-900",
     border: "border-violet-700",
+    borderSoft: "border-violet-200",
   },
   {
     bg: "bg-cyan-300",
@@ -58,6 +64,7 @@ const PALETTE: RoomColor[] = [
     bgTint: "bg-cyan-100",
     text: "text-cyan-900",
     border: "border-cyan-700",
+    borderSoft: "border-cyan-200",
   },
   {
     bg: "bg-orange-300",
@@ -66,6 +73,7 @@ const PALETTE: RoomColor[] = [
     bgTint: "bg-orange-100",
     text: "text-orange-900",
     border: "border-orange-700",
+    borderSoft: "border-orange-200",
   },
   {
     bg: "bg-lime-300",
@@ -74,6 +82,7 @@ const PALETTE: RoomColor[] = [
     bgTint: "bg-lime-100",
     text: "text-lime-900",
     border: "border-lime-700",
+    borderSoft: "border-lime-200",
   },
 ];
 
