@@ -116,6 +116,7 @@ export default function CalendarPage() {
   const [showBookingDialog, setShowBookingDialog] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showBookedSlotDialog, setShowBookedSlotDialog] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [updateStartTime, setUpdateStartTime] = useState("09:00");
   const [updateEndTime, setUpdateEndTime] = useState("10:00");
@@ -345,22 +346,13 @@ export default function CalendarPage() {
     }
   }
 
-  async function handleCancelBooking() {
+  function handleCancelBooking() {
     if (!selectedBookingId || !user?.id) return;
-    const booking = bookings?.find((b) => b._id === selectedBookingId);
-    const room = booking ? rooms?.find((r) => r._id === booking.roomId) : null;
-    const slotLabel = booking
-      ? booking.slotType === "session" && booking.startTime && booking.endTime
-        ? `${booking.startTime}–${booking.endTime}`
-        : booking.slotType === "full_day"
-          ? "Full Day"
-          : booking.slotType.toUpperCase()
-      : "";
-    const dateLabel = booking ? format(new Date(booking.date), "EEE, d MMM yyyy") : "";
-    const confirmed = window.confirm(
-      `Cancel this booking?\n\n${room?.name ?? ""} — ${dateLabel} — ${slotLabel}\n\nThis cannot be undone.`
-    );
-    if (!confirmed) return;
+    setShowCancelConfirm(true);
+  }
+
+  async function confirmCancelBooking() {
+    if (!selectedBookingId || !user?.id) return;
     setIsSubmitting(true);
     try {
       const result = await cancelBooking({
@@ -376,6 +368,7 @@ export default function CalendarPage() {
       if (result.waitlistNotified > 0) {
         toast.info(`${result.waitlistNotified} booker(s) notified from waitlist`);
       }
+      setShowCancelConfirm(false);
       setShowDetailDialog(false);
       setCancelReason("");
     } catch (error) {
@@ -1647,6 +1640,52 @@ export default function CalendarPage() {
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel Booking Confirmation */}
+      <Dialog open={showCancelConfirm} onOpenChange={setShowCancelConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Are you sure you want to cancel this booking?</DialogTitle>
+            <DialogDescription>
+              {(() => {
+                const booking = bookings?.find((b) => b._id === selectedBookingId);
+                if (!booking) return "This action cannot be undone.";
+                const room = rooms?.find((r) => r._id === booking.roomId);
+                const slotLabel =
+                  booking.slotType === "session" && booking.startTime && booking.endTime
+                    ? `${booking.startTime}–${booking.endTime}`
+                    : booking.slotType === "full_day"
+                      ? "Full Day"
+                      : booking.slotType.toUpperCase();
+                return (
+                  <>
+                    <span className="block">
+                      <strong>{room?.name}</strong> — {format(new Date(booking.date), "EEE, d MMM yyyy")} — {slotLabel}
+                    </span>
+                    <span className="block mt-2">This action cannot be undone.</span>
+                  </>
+                );
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setShowCancelConfirm(false)}
+              disabled={isSubmitting}
+            >
+              No, keep
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmCancelBooking}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Cancelling..." : "Yes, cancel"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
