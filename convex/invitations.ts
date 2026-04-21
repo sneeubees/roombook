@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 export const listByOrg = query({
   args: { orgId: v.id("organizations") },
@@ -25,39 +26,47 @@ export const getByToken = query({
 export const create = mutation({
   args: {
     orgId: v.id("organizations"),
-    clerkOrgId: v.string(),
-    invitedBy: v.string(),
-    invitedByName: v.optional(v.string()),
     email: v.string(),
-    role: v.union(v.literal("therapist"), v.literal("owner"), v.literal("manager")),
+    role: v.union(v.literal("manager"), v.literal("booker")),
     token: v.string(),
   },
   handler: async (ctx, args) => {
-    // Enforce at most one Owner per organisation. Only Manager/Booker invites
-    // are accepted via the app; Owner transfers must be done manually.
-    if (args.role === "owner") {
-      throw new Error(
-        "Each organisation can only have one Owner. Invite the new person as Manager or Booker instead."
-      );
+    const invitedBy = await getAuthUserId(ctx);
+    if (!invitedBy) throw new Error("Not authenticated");
+
+    // Only owner/manager can invite.
+    const actorMembership = await ctx.db
+      .query("memberships")
+      .withIndex("by_org_user", (q) =>
+        q.eq("orgId", args.orgId).eq("userId", invitedBy)
+      )
+      .unique();
+    if (!actorMembership || actorMembership.role === "booker") {
+      throw new Error("Only an owner or manager can invite people");
     }
 
     // 7 day expiry
     const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000;
 
-    const { invitedByName, ...insertArgs } = args;
-
     const id = await ctx.db.insert("invitations", {
-      ...insertArgs,
+      orgId: args.orgId,
+      invitedBy,
+      email: args.email,
+      role: args.role,
+      token: args.token,
       status: "pending",
       expiresAt,
     });
 
-    // Activity log
+    const actor = await ctx.db.get(invitedBy);
     await ctx.db.insert("activityLogs", {
       orgId: args.orgId,
-      actorId: args.invitedBy,
-      actorName: invitedByName ?? "Unknown",
-      actorRole: "owner_or_manager",
+      actorId: invitedBy,
+      actorName:
+        (actor as { name?: string } | null)?.name ??
+        (actor as { email?: string } | null)?.email ??
+        "Unknown",
+      actorRole: actorMembership.role,
       action: "member_invited",
       targetType: "invitation",
       targetId: id,
@@ -69,9 +78,14 @@ export const create = mutation({
   },
 });
 
+// Accept an invite: the signed-in user claims the invitation and a membership
+// row is created for them in the invited org.
 export const accept = mutation({
   args: { token: v.string() },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Sign in first, then open the invite link again");
+
     const invitation = await ctx.db
       .query("invitations")
       .withIndex("by_token", (q) => q.eq("token", args.token))
@@ -82,6 +96,21 @@ export const accept = mutation({
       throw new Error("Invitation is no longer valid");
     if (Date.now() > invitation.expiresAt)
       throw new Error("Invitation has expired");
+
+    // Check if user is already a member; if so just mark accepted.
+    const existingMembership = await ctx.db
+      .query("memberships")
+      .withIndex("by_org_user", (q) =>
+        q.eq("orgId", invitation.orgId).eq("userId", userId)
+      )
+      .unique();
+    if (!existingMembership) {
+      await ctx.db.insert("memberships", {
+        orgId: invitation.orgId,
+        userId,
+        role: invitation.role,
+      });
+    }
 
     await ctx.db.patch(invitation._id, {
       status: "accepted",

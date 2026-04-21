@@ -1,40 +1,23 @@
 "use client";
 
-import { useOrganization } from "@clerk/nextjs";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
-import { useEffect, useRef } from "react";
 
+/**
+ * Returns the current user's primary organisation (the first one they are a
+ * member of, preferring an Owner membership). If they have no org, the caller
+ * should redirect to /onboarding where they create one.
+ */
 export function useOrgData() {
-  const { organization, isLoaded } = useOrganization();
-  const createOrg = useMutation(api.organizations.create);
-  const creating = useRef(false);
-
-  const convexOrg = useQuery(
-    api.organizations.getByClerkOrgId,
-    organization?.id ? { clerkOrgId: organization.id } : "skip"
-  );
-
-  // Auto-sync: if Clerk org exists but Convex org doesn't, create it
-  useEffect(() => {
-    if (organization && convexOrg === null && !creating.current) {
-      creating.current = true;
-      createOrg({
-        clerkOrgId: organization.id,
-        name: organization.name,
-        slug: organization.slug ?? organization.name.toLowerCase().replace(/\s+/g, "-"),
-      })
-        .catch(console.error)
-        .finally(() => {
-          creating.current = false;
-        });
-    }
-  }, [organization, convexOrg, createOrg]);
-
+  const data = useQuery(api.organizations.currentOrg);
+  const isLoaded = data !== undefined;
+  const org = data?.org ?? null;
+  const membership = data?.membership ?? null;
   return {
-    clerkOrg: organization,
-    convexOrg,
+    convexOrg: org,
+    membership,
     isLoaded,
-    orgId: convexOrg?._id,
+    orgId: org?._id,
+    role: membership?.role,
   };
 }

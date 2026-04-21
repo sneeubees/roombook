@@ -39,23 +39,27 @@ export const generateInvoices = internalAction({
         }
       );
 
-      // Group by user
+      // Group by user (Convex Id values stringify uniquely, so we key by string
+      // and re-use the first booking's userId as the canonical Id<"users">).
       const byUser = new Map<
         string,
-        { userName: string; bookings: typeof bookings }
+        { userId: any; userName: string; bookings: typeof bookings }
       >();
       for (const booking of bookings) {
-        const existing = byUser.get(booking.userId) ?? {
+        const key = booking.userId as unknown as string;
+        const existing = byUser.get(key) ?? {
+          userId: booking.userId,
           userName: booking.userName,
           bookings: [],
         };
         existing.bookings.push(booking);
-        byUser.set(booking.userId, existing);
+        byUser.set(key, existing);
       }
 
       // Generate invoice for each user
       let invoiceSeq = 1;
-      for (const [userId, data] of byUser) {
+      for (const [, data] of byUser) {
+        const userId = data.userId;
         const subtotal = data.bookings.reduce(
           (sum: number, b: any) => sum + b.rateApplied,
           0

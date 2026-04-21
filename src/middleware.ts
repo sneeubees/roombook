@@ -1,31 +1,34 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import {
+  convexAuthNextjsMiddleware,
+  createRouteMatcher,
+  nextjsMiddlewareRedirect,
+} from "@convex-dev/auth/nextjs/server";
 import { NextResponse } from "next/server";
 
 const isPublicRoute = createRouteMatcher([
   "/",
-  "/sign-in(.*)",
-  "/sign-up(.*)",
-  "/invite(.*)",
-  "/api/webhooks(.*)",
-  "/api/domains(.*)",
-  "/api/calendar(.*)",
-  "/api/invoices(.*)",
-  "/api/email(.*)",
+  "/sign-in",
+  "/sign-up",
+  "/invite/(.*)",
+  "/api/webhooks/(.*)",
+  "/api/domains/(.*)",
+  "/api/calendar/(.*)",
+  "/api/email/(.*)",
 ]);
+
+const isAuthPage = createRouteMatcher(["/sign-in", "/sign-up"]);
 
 const MAIN_DOMAINS = ["roombook.co.za", "www.roombook.co.za"];
 
-export default clerkMiddleware(async (auth, request) => {
-  if (!isPublicRoute(request)) {
-    try {
-      await auth.protect();
-    } catch {
-      // On hard refresh in Clerk dev mode, auth.protect() fails
-      // because dev browser token is missing. Redirect to sign-in.
-      const signInUrl = new URL("/sign-in", request.url);
-      signInUrl.searchParams.set("redirect_url", request.url);
-      return NextResponse.redirect(signInUrl);
-    }
+export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
+  const authed = await convexAuth.isAuthenticated();
+
+  if (!isPublicRoute(request) && !authed) {
+    return nextjsMiddlewareRedirect(request, "/sign-in");
+  }
+
+  if (isAuthPage(request) && authed) {
+    return nextjsMiddlewareRedirect(request, "/dashboard");
   }
 
   // Detect custom domain and set cookie for client-side use
@@ -34,7 +37,6 @@ export default clerkMiddleware(async (auth, request) => {
     hostname !== "" &&
     !hostname.includes("localhost") &&
     !MAIN_DOMAINS.includes(hostname);
-
   if (isCustomDomain) {
     const response = NextResponse.next();
     response.cookies.set("custom-domain", hostname, {

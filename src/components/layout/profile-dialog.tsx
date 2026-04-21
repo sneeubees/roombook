@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useUser } from "@clerk/nextjs";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
@@ -26,13 +25,9 @@ interface ProfileDialogProps {
 }
 
 export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
-  const { user } = useUser();
+  const me = useQuery(api.users.currentUser);
   const { convexOrg, orgId } = useOrgData();
   const { isOwner } = useUserRole();
-  const convexUser = useQuery(
-    api.users.getByClerkUserId,
-    user?.id ? { clerkUserId: user.id } : "skip"
-  );
   const updateProfile = useMutation(api.users.updateProfile);
   const updateOrg = useMutation(api.organizations.update);
   const generateToken = useMutation(api.users.generateCalendarToken);
@@ -44,11 +39,11 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (convexUser) {
-      setFullName(convexUser.fullName || "");
-      setPhone(convexUser.phone || "");
+    if (me) {
+      setFullName(me.fullName || "");
+      setPhone(me.phone || "");
     }
-  }, [convexUser]);
+  }, [me]);
 
   useEffect(() => {
     if (convexOrg) {
@@ -58,11 +53,10 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
   }, [convexOrg]);
 
   async function handleSave() {
-    if (!user?.id || !fullName.trim()) return;
+    if (!me?._id || !fullName.trim()) return;
     setIsSubmitting(true);
     try {
       await updateProfile({
-        clerkUserId: user.id,
         fullName: fullName.trim(),
         phone: phone.trim() || undefined,
       });
@@ -123,7 +117,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
           <div className="space-y-2">
             <Label>Email</Label>
             <Input
-              value={convexUser?.email ?? ""}
+              value={me?.email ?? ""}
               disabled
               className="bg-muted"
             />
@@ -173,12 +167,12 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
               Apple Calendar. Your calendar will auto-update when bookings
               change.
             </p>
-            {convexUser?.calendarToken ? (
+            {me?.calendarToken ? (
               <div className="space-y-2">
                 <div className="flex gap-2">
                   <Input
                     readOnly
-                    value={`${typeof window !== "undefined" ? window.location.origin : ""}/api/calendar/${convexUser.calendarToken}`}
+                    value={`${typeof window !== "undefined" ? window.location.origin : ""}/api/calendar/${me.calendarToken}`}
                     className="text-xs bg-muted font-mono"
                   />
                   <Button
@@ -187,7 +181,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                     size="sm"
                     onClick={() => {
                       navigator.clipboard.writeText(
-                        `${window.location.origin}/api/calendar/${convexUser.calendarToken}`
+                        `${window.location.origin}/api/calendar/${me.calendarToken}`
                       );
                       toast.success("Calendar URL copied!");
                     }}
@@ -206,8 +200,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                   size="sm"
                   className="text-xs"
                   onClick={async () => {
-                    if (!user?.id) return;
-                    await generateToken({ clerkUserId: user.id });
+                    await generateToken();
                     toast.success("New calendar link generated. Update your calendar subscription.");
                   }}
                 >
@@ -219,8 +212,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                 type="button"
                 variant="outline"
                 onClick={async () => {
-                  if (!user?.id) return;
-                  await generateToken({ clerkUserId: user.id });
+                  await generateToken();
                   toast.success("Calendar link generated!");
                 }}
               >

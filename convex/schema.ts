@@ -1,24 +1,41 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { authTables } from "@convex-dev/auth/server";
 
 export default defineSchema({
-  // Organization settings (extends Clerk Organizations)
+  // Convex Auth tables — users, authAccounts, authSessions, etc.
+  ...authTables,
+
+  // Extra per-user profile data that augments the Convex Auth `users` row.
+  // Keyed by the Convex Auth userId.
+  userProfiles: defineTable({
+    userId: v.id("users"),
+    fullName: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    imageUrl: v.optional(v.string()),
+    isProfileComplete: v.optional(v.boolean()),
+    isSuperAdmin: v.optional(v.boolean()),
+    calendarToken: v.optional(v.string()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_calendarToken", ["calendarToken"]),
+
+  // Organization settings.
   organizations: defineTable({
-    clerkOrgId: v.string(),
     name: v.string(),
     slug: v.string(),
     address: v.optional(v.string()),
     phone: v.optional(v.string()),
     email: v.optional(v.string()),
     logoUrl: v.optional(v.string()),
-    invoicesEnabled: v.optional(v.boolean()), // default true
-    invoiceMode: v.optional(v.union(v.literal("auto"), v.literal("manual"))), // default "auto"
-    invoiceDayOfMonth: v.number(), // 1-28
-    invoicePrefix: v.string(), // e.g. "INV"
-    currency: v.string(), // default "ZAR"
-    timezone: v.string(), // default "Africa/Johannesburg"
+    invoicesEnabled: v.optional(v.boolean()),
+    invoiceMode: v.optional(v.union(v.literal("auto"), v.literal("manual"))),
+    invoiceDayOfMonth: v.number(),
+    invoicePrefix: v.string(),
+    currency: v.string(),
+    timezone: v.string(),
     vatNumber: v.optional(v.string()),
-    vatRate: v.number(), // default 0.15 (15%)
+    vatRate: v.number(),
     bankingDetails: v.optional(
       v.object({
         bankName: v.string(),
@@ -27,23 +44,18 @@ export default defineSchema({
         accountType: v.string(),
       })
     ),
-    // What staff members are called (default "Booker")
-    staffLabel: v.optional(v.string()), // "Booker", "Therapist", "Physician", "Doctor", "Stylist", or custom
-    // Calendar color theme
-    calendarTheme: v.optional(v.string()), // "ocean", "forest", "sunset", "minimal"
-    // Dark mode preference
+    staffLabel: v.optional(v.string()),
+    calendarTheme: v.optional(v.string()),
     darkMode: v.optional(v.boolean()),
-    // Whether bookers can see another booker's name (owner always sees)
     showBookerNames: v.optional(v.boolean()),
-    // Whether to also show contact number (only when showBookerNames is true)
     showBookerContact: v.optional(v.boolean()),
-    // Organization approval status
-    status: v.optional(v.union(
-      v.literal("pending_approval"),
-      v.literal("active"),
-      v.literal("suspended")
-    )),
-    // Subscription tier (defaults to "basic" in app logic)
+    status: v.optional(
+      v.union(
+        v.literal("pending_approval"),
+        v.literal("active"),
+        v.literal("suspended")
+      )
+    ),
     subscriptionTier: v.optional(
       v.union(
         v.literal("basic"),
@@ -51,38 +63,33 @@ export default defineSchema({
         v.literal("enterprise")
       )
     ),
+    // The Convex Auth userId of the owner (one per org).
+    ownerUserId: v.optional(v.id("users")),
+  }).index("by_slug", ["slug"]),
+
+  // Membership — links a user to an organisation with a role.
+  memberships: defineTable({
+    orgId: v.id("organizations"),
+    userId: v.id("users"),
+    role: v.union(v.literal("owner"), v.literal("manager"), v.literal("booker")),
   })
-    .index("by_clerkOrgId", ["clerkOrgId"])
-    .index("by_slug", ["slug"]),
+    .index("by_org", ["orgId"])
+    .index("by_user", ["userId"])
+    .index("by_org_user", ["orgId", "userId"]),
 
-  // User profiles
-  users: defineTable({
-    clerkUserId: v.string(),
-    email: v.string(),
-    fullName: v.string(),
-    phone: v.optional(v.string()),
-    imageUrl: v.optional(v.string()),
-    isProfileComplete: v.optional(v.boolean()),
-    isSuperAdmin: v.optional(v.boolean()),
-    calendarToken: v.optional(v.string()), // Secure token for iCal feed URL
-  }).index("by_clerkUserId", ["clerkUserId"]),
-
-  // Rooms within an organization
+  // Rooms.
   rooms: defineTable({
     orgId: v.id("organizations"),
     name: v.string(),
     description: v.optional(v.string()),
-    // Pricing mode: day_based (full/half day) or hourly (per session)
     pricingMode: v.union(v.literal("day_based"), v.literal("hourly")),
-    fullDayRate: v.optional(v.number()), // cents, day_based only
-    halfDayRate: v.optional(v.number()), // cents, day_based only
-    hourlyRate: v.optional(v.number()), // cents, hourly only
-    sessionDurationMinutes: v.optional(v.number()), // default session length (e.g. 60)
-    // Which days the room can be booked (0=Sun, 1=Mon, ... 6=Sat). Empty = all days.
+    fullDayRate: v.optional(v.number()),
+    halfDayRate: v.optional(v.number()),
+    hourlyRate: v.optional(v.number()),
+    sessionDurationMinutes: v.optional(v.number()),
     availableDays: v.optional(v.array(v.number())),
-    // Availability time window (e.g. "09:00" to "17:00"). Null = 24 hours.
-    availabilityStart: v.optional(v.string()), // "HH:mm"
-    availabilityEnd: v.optional(v.string()), // "HH:mm"
+    availabilityStart: v.optional(v.string()),
+    availabilityEnd: v.optional(v.string()),
     amenities: v.array(v.string()),
     isActive: v.boolean(),
     sortOrder: v.number(),
@@ -93,34 +100,31 @@ export default defineSchema({
     cancellationDeadlineHours: v.optional(v.number()),
   }).index("by_org", ["orgId"]),
 
-  // Bookings
+  // Bookings.
   bookings: defineTable({
     orgId: v.id("organizations"),
     roomId: v.id("rooms"),
-    userId: v.string(), // Clerk user ID — the booker this booking is FOR
-    userName: v.string(), // denormalized
-    description: v.optional(v.string()), // Patient name / meeting name
-    bookedBy: v.optional(v.string()), // Clerk user ID of person who created booking (if on behalf)
-    bookedByName: v.optional(v.string()), // denormalized name of booker
-    date: v.string(), // ISO date "2026-04-14"
+    userId: v.id("users"),
+    userName: v.string(),
+    description: v.optional(v.string()),
+    bookedBy: v.optional(v.id("users")),
+    bookedByName: v.optional(v.string()),
+    date: v.string(),
     slotType: v.union(
       v.literal("full_day"),
       v.literal("am"),
       v.literal("pm"),
       v.literal("session")
     ),
-    // For session (hourly) bookings — "HH:mm" format
     startTime: v.optional(v.string()),
     endTime: v.optional(v.string()),
     status: v.union(v.literal("confirmed"), v.literal("cancelled")),
-    rateApplied: v.number(), // snapshot at booking time (cents)
+    rateApplied: v.number(),
     isBillable: v.boolean(),
     cancelledAt: v.optional(v.number()),
-    cancelledBy: v.optional(v.string()),
+    cancelledBy: v.optional(v.id("users")),
     cancellationReason: v.optional(v.string()),
     notes: v.optional(v.string()),
-    // When true, this booking is skipped by future invoice runs.
-    // Existing invoices that already contain the booking are unaffected.
     excludeFromInvoice: v.optional(v.boolean()),
   })
     .index("by_room_date", ["roomId", "date"])
@@ -129,11 +133,11 @@ export default defineSchema({
     .index("by_org_user_status", ["orgId", "userId", "status"])
     .index("by_org_status", ["orgId", "status"]),
 
-  // Owner-initiated room blocks
+  // Owner-initiated room blocks.
   roomBlocks: defineTable({
     orgId: v.id("organizations"),
     roomId: v.id("rooms"),
-    blockedBy: v.string(), // Clerk user ID
+    blockedBy: v.id("users"),
     startDate: v.string(),
     endDate: v.string(),
     slotType: v.union(
@@ -142,19 +146,18 @@ export default defineSchema({
       v.literal("pm"),
       v.literal("time_range")
     ),
-    // For time_range blocks on hourly rooms
-    startTime: v.optional(v.string()), // "HH:mm"
-    endTime: v.optional(v.string()), // "HH:mm"
+    startTime: v.optional(v.string()),
+    endTime: v.optional(v.string()),
     reason: v.optional(v.string()),
   })
     .index("by_room", ["roomId"])
     .index("by_org", ["orgId"]),
 
-  // Waitlist for booked slots
+  // Waitlist.
   waitlist: defineTable({
     orgId: v.id("organizations"),
     roomId: v.id("rooms"),
-    userId: v.string(),
+    userId: v.id("users"),
     date: v.string(),
     slotType: v.union(
       v.literal("full_day"),
@@ -162,7 +165,6 @@ export default defineSchema({
       v.literal("pm"),
       v.literal("session")
     ),
-    // For session waitlist entries
     startTime: v.optional(v.string()),
     endTime: v.optional(v.string()),
     status: v.union(
@@ -176,14 +178,14 @@ export default defineSchema({
     .index("by_room_date_slot", ["roomId", "date", "slotType"])
     .index("by_user", ["userId"]),
 
-  // Invoices
+  // Invoices.
   invoices: defineTable({
     orgId: v.id("organizations"),
-    userId: v.string(), // Clerk user ID
+    userId: v.id("users"),
     invoiceNumber: v.string(),
     periodStart: v.string(),
     periodEnd: v.string(),
-    subtotal: v.number(), // cents
+    subtotal: v.number(),
     taxRate: v.number(),
     taxAmount: v.number(),
     total: v.number(),
@@ -200,7 +202,6 @@ export default defineSchema({
     paidAt: v.optional(v.number()),
     dueDate: v.optional(v.string()),
     notes: v.optional(v.string()),
-    // When an invoice is cancelled via regeneration
     cancelledAt: v.optional(v.number()),
     cancelledReason: v.optional(v.string()),
     replacedByInvoiceId: v.optional(v.id("invoices")),
@@ -211,11 +212,11 @@ export default defineSchema({
     .index("by_org_period", ["orgId", "periodStart"])
     .index("by_invoiceNumber", ["invoiceNumber"]),
 
-  // Invoice line items
+  // Invoice line items.
   invoiceLineItems: defineTable({
     invoiceId: v.id("invoices"),
     bookingId: v.id("bookings"),
-    roomName: v.string(), // denormalized snapshot
+    roomName: v.string(),
     date: v.string(),
     slotType: v.union(
       v.literal("full_day"),
@@ -228,17 +229,16 @@ export default defineSchema({
     durationMinutes: v.optional(v.number()),
     description: v.optional(v.string()),
     bookedByName: v.optional(v.string()),
-    rate: v.number(), // cents
-    amount: v.number(), // cents
+    rate: v.number(),
+    amount: v.number(),
   }).index("by_invoice", ["invoiceId"]),
 
-  // Invitations
+  // Invitations — tokenised invite link for adding a user to an org.
   invitations: defineTable({
     orgId: v.id("organizations"),
-    clerkOrgId: v.string(),
-    invitedBy: v.string(), // Clerk user ID
+    invitedBy: v.id("users"),
     email: v.string(),
-    role: v.union(v.literal("therapist"), v.literal("owner"), v.literal("manager")),
+    role: v.union(v.literal("manager"), v.literal("booker")),
     token: v.string(),
     status: v.union(
       v.literal("pending"),
@@ -250,11 +250,12 @@ export default defineSchema({
     acceptedAt: v.optional(v.number()),
   })
     .index("by_token", ["token"])
-    .index("by_org", ["orgId"]),
+    .index("by_org", ["orgId"])
+    .index("by_email", ["email"]),
 
-  // Notifications
+  // Notifications.
   notifications: defineTable({
-    userId: v.string(), // Clerk user ID
+    userId: v.union(v.id("users"), v.string()),
     orgId: v.id("organizations"),
     type: v.union(
       v.literal("waitlist_available"),
@@ -272,7 +273,7 @@ export default defineSchema({
     .index("by_user_unread", ["userId", "isRead"])
     .index("by_org", ["orgId"]),
 
-  // White-label domain mapping (Phase 2)
+  // White-label domain mapping.
   domains: defineTable({
     orgId: v.id("organizations"),
     domain: v.string(),
@@ -280,14 +281,14 @@ export default defineSchema({
     verifiedAt: v.optional(v.number()),
   }).index("by_domain", ["domain"]),
 
-  // Activity log — audit trail of actions in the app
+  // Activity log — audit trail.
   activityLogs: defineTable({
     orgId: v.id("organizations"),
-    actorId: v.string(), // Clerk user ID of the actor
-    actorName: v.string(), // denormalized actor name
-    actorRole: v.string(), // "owner" | "manager" | "booker" | "super_admin"
-    action: v.string(), // e.g., "booking_created", "booking_cancelled"
-    targetType: v.optional(v.string()), // "booking", "user", "room", "invoice", "organization"
+    actorId: v.id("users"),
+    actorName: v.string(),
+    actorRole: v.string(),
+    action: v.string(),
+    targetType: v.optional(v.string()),
     targetId: v.optional(v.string()),
     targetName: v.optional(v.string()),
     details: v.optional(v.any()),

@@ -10,6 +10,7 @@
 
 import type * as activityLogs from "../activityLogs.js";
 import type * as admin from "../admin.js";
+import type * as auth from "../auth.js";
 import type * as bookings from "../bookings.js";
 import type * as crons from "../crons.js";
 import type * as domains from "../domains.js";
@@ -24,7 +25,6 @@ import type * as notifications from "../notifications.js";
 import type * as organizations from "../organizations.js";
 import type * as roomBlocks from "../roomBlocks.js";
 import type * as rooms from "../rooms.js";
-import type * as seed from "../seed.js";
 import type * as users from "../users.js";
 import type * as waitlist from "../waitlist.js";
 
@@ -37,6 +37,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   activityLogs: typeof activityLogs;
   admin: typeof admin;
+  auth: typeof auth;
   bookings: typeof bookings;
   crons: typeof crons;
   domains: typeof domains;
@@ -51,7 +52,6 @@ declare const fullApi: ApiFromModules<{
   organizations: typeof organizations;
   roomBlocks: typeof roomBlocks;
   rooms: typeof rooms;
-  seed: typeof seed;
   users: typeof users;
   waitlist: typeof waitlist;
 }>;

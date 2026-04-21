@@ -9,16 +9,13 @@ export const getBookingWithDetails = internalQuery({
 
     const room = await ctx.db.get(booking.roomId);
     const org = await ctx.db.get(booking.orgId);
-
-    // Get user email from users table
-    const users = await ctx.db.query("users").collect();
-    const user = users.find((u) => u.clerkUserId === booking.userId);
+    const user = await ctx.db.get(booking.userId);
 
     return {
       ...booking,
       roomName: room?.name ?? "Unknown Room",
       orgName: org?.name ?? "Unknown Organization",
-      userEmail: user?.email ?? "",
+      userEmail: (user as { email?: string } | null)?.email ?? "",
     };
   },
 });
@@ -30,25 +27,40 @@ export const getInvoiceWithDetails = internalQuery({
     if (!invoice) return null;
 
     const org = await ctx.db.get(invoice.orgId);
-
-    const users = await ctx.db.query("users").collect();
-    const user = users.find((u) => u.clerkUserId === invoice.userId);
+    const user = await ctx.db.get(invoice.userId);
+    const profile = user
+      ? await ctx.db
+          .query("userProfiles")
+          .withIndex("by_user", (q) => q.eq("userId", invoice.userId))
+          .unique()
+      : null;
 
     return {
       ...invoice,
       orgName: org?.name ?? "Unknown Organization",
-      userEmail: user?.email ?? "",
-      userName: user?.fullName ?? "Unknown",
+      userEmail: (user as { email?: string } | null)?.email ?? "",
+      userName:
+        profile?.fullName ??
+        (user as { name?: string } | null)?.name ??
+        "Unknown",
     };
   },
 });
 
-export const getUserByClerkId = internalQuery({
-  args: { clerkUserId: v.string() },
+export const getUserById = internalQuery({
+  args: { userId: v.id("users") },
   handler: async (ctx, args) => {
-    return await ctx.db
-      .query("users")
-      .withIndex("by_clerkUserId", (q) => q.eq("clerkUserId", args.clerkUserId))
+    const user = await ctx.db.get(args.userId);
+    if (!user) return null;
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
       .unique();
+    return {
+      _id: user._id,
+      email: (user as { email?: string }).email ?? "",
+      fullName:
+        profile?.fullName ?? (user as { name?: string }).name ?? "",
+    };
   },
 });

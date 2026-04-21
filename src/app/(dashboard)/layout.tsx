@@ -1,10 +1,9 @@
 "use client";
 
-import { useOrganization, useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { useQuery } from "convex/react";
+import { useQuery, useConvexAuth } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -19,19 +18,20 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { DoorOpen, Clock, ShieldX } from "lucide-react";
+import { Clock, ShieldX } from "lucide-react";
 
 export default function DashboardLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isLoaded: userLoaded, isSignedIn } = useUser();
-  const { organization, isLoaded: orgLoaded } = useOrganization();
+  const { isAuthenticated, isLoading: authLoading } = useConvexAuth();
   const router = useRouter();
-  const { convexOrg } = useOrgData();
+  const { convexOrg, isLoaded: orgLoaded } = useOrgData();
   const { isSuperAdmin } = useUserRole();
   useUserSync();
+
+  const me = useQuery(api.users.currentUser);
 
   // Apply dark mode based on org setting
   useEffect(() => {
@@ -42,26 +42,21 @@ export default function DashboardLayout({
     }
   }, [convexOrg?.darkMode]);
 
-  const convexUser = useQuery(
-    api.users.getByClerkUserId,
-    user?.id ? { clerkUserId: user.id } : "skip"
-  );
-
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
-    if (userLoaded && !isSignedIn) {
+    if (!authLoading && !isAuthenticated) {
       router.push("/sign-in");
     }
-  }, [userLoaded, isSignedIn, router]);
+  }, [authLoading, isAuthenticated, router]);
 
   useEffect(() => {
-    if (orgLoaded && !organization && isSignedIn && !isSuperAdmin) {
+    if (orgLoaded && !convexOrg && isAuthenticated && !isSuperAdmin) {
       router.push("/onboarding");
     }
-  }, [orgLoaded, organization, isSignedIn, isSuperAdmin, router]);
+  }, [orgLoaded, convexOrg, isAuthenticated, isSuperAdmin, router]);
 
-  if (!userLoaded || !orgLoaded) {
+  if (authLoading || !orgLoaded) {
     return (
       <div className="flex h-screen items-center justify-center">
         <div className="animate-pulse text-muted-foreground">Loading...</div>
@@ -69,12 +64,12 @@ export default function DashboardLayout({
     );
   }
 
-  if (!isSignedIn) {
+  if (!isAuthenticated) {
     return null;
   }
 
   // Super admin can access without an org
-  if (!organization && !isSuperAdmin) {
+  if (!convexOrg && !isSuperAdmin) {
     return null;
   }
 
@@ -126,7 +121,7 @@ export default function DashboardLayout({
 
   // Show first-login modal if profile is not complete
   const needsProfileSetup =
-    convexUser !== undefined && convexUser?.isProfileComplete !== true;
+    me !== undefined && me?.isProfileComplete !== true;
 
   return (
     <div className="flex h-screen">

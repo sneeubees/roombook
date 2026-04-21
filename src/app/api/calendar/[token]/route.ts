@@ -18,7 +18,7 @@ export async function GET(
 
   // Get all confirmed bookings for this user
   const bookings = await convex.query(api.bookings.listAllByUser, {
-    userId: user.clerkUserId,
+    userId: user._id,
   });
 
   const events: EventAttributes[] = [];

@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { internalMutation, mutation, query } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 /**
  * Internal — called from other mutations to record an activity event.
@@ -7,7 +8,7 @@ import { internalMutation, mutation, query } from "./_generated/server";
 export const log = internalMutation({
   args: {
     orgId: v.id("organizations"),
-    actorId: v.string(),
+    actorId: v.id("users"),
     actorName: v.string(),
     actorRole: v.string(),
     action: v.string(),
@@ -21,15 +22,9 @@ export const log = internalMutation({
   },
 });
 
-/**
- * Public mutation used by the client (e.g., room creation/edit) to log activity.
- * The client passes actor info since we don't have Convex-side auth context
- * of Clerk roles here.
- */
 export const record = mutation({
   args: {
     orgId: v.id("organizations"),
-    actorId: v.string(),
     actorName: v.string(),
     actorRole: v.string(),
     action: v.string(),
@@ -39,7 +34,12 @@ export const record = mutation({
     details: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
-    await ctx.db.insert("activityLogs", args);
+    const actorId = await getAuthUserId(ctx);
+    if (!actorId) throw new Error("Not authenticated");
+    await ctx.db.insert("activityLogs", {
+      ...args,
+      actorId,
+    });
   },
 });
 
@@ -66,7 +66,6 @@ export const listAll = query({
       .order("desc")
       .take(args.limit ?? 500);
 
-    // Enrich with org names
     const orgIds = Array.from(new Set(rows.map((r) => r.orgId)));
     const orgs = await Promise.all(orgIds.map((id) => ctx.db.get(id)));
     const orgMap = new Map(orgs.filter(Boolean).map((o) => [o!._id, o!.name]));

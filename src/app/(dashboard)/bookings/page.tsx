@@ -5,7 +5,6 @@ import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useSubscriptionTier } from "@/hooks/use-subscription-tier";
-import { useUser } from "@clerk/nextjs";
 import { useState } from "react";
 import { Id } from "../../../../convex/_generated/dataModel";
 import Link from "next/link";
@@ -57,7 +56,7 @@ import {
 } from "date-fns";
 
 export default function BookingsPage() {
-  const { user } = useUser();
+  const me = useQuery(api.users.currentUser);
   const { orgId } = useOrgData();
   const { isOwner } = useUserRole();
   const { can } = useSubscriptionTier();
@@ -114,15 +113,14 @@ export default function BookingsPage() {
 
   const bookings = isOwner
     ? allBookings
-    : allBookings?.filter((b) => b.userId === user?.id);
+    : allBookings?.filter((b) => b.userId === me?._id);
 
   async function handleCancel() {
-    if (!cancelTarget || !user?.id) return;
+    if (!cancelTarget || !me?._id) return;
     setIsSubmitting(true);
     try {
       const result = await cancelBooking({
         id: cancelTarget,
-        cancelledBy: user.id,
         reason: cancelReason || undefined,
       });
       toast.success(
@@ -216,7 +214,7 @@ export default function BookingsPage() {
                         const room = rooms?.find((r) => r._id === booking.roomId);
                         const canCancel =
                           booking.status === "confirmed" &&
-                          (isOwner || booking.userId === user?.id);
+                          (isOwner || booking.userId === me?._id);
                         return (
                           <TableRow key={booking._id}>
                             <TableCell>
@@ -277,8 +275,6 @@ export default function BookingsPage() {
                                       setExcludeFromInvoice({
                                         id: booking._id,
                                         exclude: nextExclude,
-                                        actorId: user?.id,
-                                        actorName: user?.fullName ?? undefined,
                                       }).then(() =>
                                         toast.success(
                                           nextExclude
@@ -293,7 +289,7 @@ export default function BookingsPage() {
                             )}
                             <TableCell>
                               <div className="flex items-center gap-1">
-                                {booking.status === "confirmed" && (isOwner || booking.userId === user?.id) && (
+                                {booking.status === "confirmed" && (isOwner || booking.userId === me?._id) && (
                                   <Button
                                     variant="ghost"
                                     size="sm"
@@ -414,8 +410,6 @@ export default function BookingsPage() {
                   await setExcludeFromInvoice({
                     id: excludeConfirm.id,
                     exclude: excludeConfirm.exclude,
-                    actorId: user?.id,
-                    actorName: user?.fullName ?? undefined,
                   });
                   toast.success("Excluded from future invoices");
                   setExcludeConfirm(null);
@@ -501,8 +495,6 @@ export default function BookingsPage() {
                 try {
                   await editBooking({
                     id: editTarget,
-                    actorId: user?.id,
-                    actorName: user?.fullName ?? undefined,
                     description: editDescription || undefined,
                     notes: editNotes || undefined,
                     startTime: editStartTime || undefined,

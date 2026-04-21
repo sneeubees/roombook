@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useUser } from "@clerk/nextjs";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { useConvexAuth } from "convex/react";
+import { buttonVariants } from "@/components/ui/button";
 import {
   CalendarDays,
   DoorOpen,
@@ -52,7 +52,7 @@ const features = [
 ];
 
 export default function LandingPage() {
-  const { isSignedIn } = useUser();
+  const { isAuthenticated } = useConvexAuth();
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -64,7 +64,7 @@ export default function LandingPage() {
             <span className="text-xl font-bold">RoomBook</span>
           </div>
           <div className="flex items-center gap-3">
-            {isSignedIn ? (
+            {isAuthenticated ? (
               <Link href="/dashboard" className={buttonVariants()}>
                 Dashboard
               </Link>

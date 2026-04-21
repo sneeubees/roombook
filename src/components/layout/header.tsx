@@ -1,13 +1,12 @@
 "use client";
 
-import { useOrganization, useUser, useClerk } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
+import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../../../convex/_generated/api";
-import { useUserRole } from "@/hooks/use-user-role";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useCustomDomain } from "@/hooks/use-custom-domain";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
-import Link from "next/link";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,26 +20,25 @@ import { DoorOpen, User, LogOut, Menu, Sun, Moon } from "lucide-react";
 import { ProfileDialog } from "./profile-dialog";
 
 export function Header({ onMenuClick }: { onMenuClick?: () => void } = {}) {
-  const { organization } = useOrganization();
-  const { user } = useUser();
-  const { signOut } = useClerk();
-  const { isOwner } = useUserRole();
+  const me = useQuery(api.users.currentUser);
   const { convexOrg } = useOrgData();
   const { isCustomDomain } = useCustomDomain();
+  const { signOut } = useAuthActions();
+  const router = useRouter();
   const [profileOpen, setProfileOpen] = useState(false);
 
-  const convexUser = useQuery(
-    api.users.getByClerkUserId,
-    user?.id ? { clerkUserId: user.id } : "skip"
-  );
-
-  const displayName = convexUser?.fullName || user?.fullName || "User";
+  const displayName = me?.fullName || "User";
   const initials = displayName
     .split(" ")
     .map((n) => n[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);
+
+  async function handleSignOut() {
+    await signOut();
+    router.push("/sign-in");
+  }
 
   return (
     <>
@@ -58,7 +56,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void } = {}) {
           )}
           {!isCustomDomain && <DoorOpen className="h-4 w-4 text-muted-foreground hidden md:block" />}
           <span className="text-sm font-medium hidden md:block">
-            {convexOrg?.name ?? organization?.name ?? "Loading..."}
+            {convexOrg?.name ?? "Loading..."}
           </span>
         </div>
 
@@ -80,8 +78,8 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void } = {}) {
         <DropdownMenu>
           <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg px-2 py-1 outline-none focus-visible:ring-2 focus-visible:ring-ring hover:bg-muted transition-colors cursor-pointer">
             <Avatar className="h-8 w-8">
-              {user?.imageUrl && !user.imageUrl.includes("img.clerk.com/eyJ0eXBlIjoiZGVmYXVsdC") && (
-                <AvatarImage src={user.imageUrl} alt={displayName} />
+              {me?.imageUrl && (
+                <AvatarImage src={me.imageUrl} alt={displayName} />
               )}
               <AvatarFallback className="bg-foreground text-background text-xs font-semibold">
                 {initials.charAt(0)}
@@ -95,11 +93,11 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void } = {}) {
             <div className="px-2 py-1.5">
               <p className="text-sm font-medium">{displayName}</p>
               <p className="text-xs text-muted-foreground">
-                {convexUser?.email || user?.primaryEmailAddress?.emailAddress}
+                {me?.email}
               </p>
-              {convexUser?.phone && (
+              {me?.phone && (
                 <p className="text-xs text-muted-foreground">
-                  {convexUser.phone}
+                  {me.phone}
                 </p>
               )}
             </div>
@@ -110,7 +108,7 @@ export function Header({ onMenuClick }: { onMenuClick?: () => void } = {}) {
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
-              onClick={() => signOut({ redirectUrl: "/" })}
+              onClick={handleSignOut}
               className="text-destructive focus:text-destructive"
             >
               <LogOut className="h-4 w-4 mr-2" />

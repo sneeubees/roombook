@@ -101,13 +101,13 @@ export default function ReportsPage() {
   }, [bookings]);
 
   const convexUsers = useQuery(
-    api.users.listByClerkUserIds,
-    bookerIds.length > 0 ? { clerkUserIds: bookerIds } : "skip"
+    api.users.listByIds,
+    bookerIds.length > 0 ? { ids: bookerIds as any } : "skip"
   );
 
-  function resolveUserName(clerkUserId: string): string {
-    const cu = convexUsers?.find((u) => u.clerkUserId === clerkUserId);
-    return cu?.fullName || clerkUserId;
+  function resolveUserName(userId: string): string {
+    const cu = convexUsers?.find((u) => u._id === userId);
+    return cu?.fullName || userId;
   }
 
   // Room occupancy data

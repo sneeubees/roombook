@@ -8,7 +8,6 @@ import { useSubscriptionTier } from "@/hooks/use-subscription-tier";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useCustomDomain } from "@/hooks/use-custom-domain";
 import { useQuery } from "convex/react";
-import { useUser } from "@clerk/nextjs";
 import { api } from "../../../convex/_generated/api";
 import type { Feature } from "@/lib/tiers";
 import {
@@ -59,12 +58,8 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   const { isCustomDomain } = useCustomDomain();
   const { can } = useSubscriptionTier();
   const { convexOrg } = useOrgData();
-  const { user } = useUser();
 
-  const unreadCount = useQuery(
-    api.notifications.countUnread,
-    user?.id ? { userId: user.id } : "skip"
-  );
+  const unreadCount = useQuery(api.notifications.countUnread);
 
   const invoicesOn = convexOrg?.invoicesEnabled !== false;
   // Manager gets owner links minus Settings + Reports

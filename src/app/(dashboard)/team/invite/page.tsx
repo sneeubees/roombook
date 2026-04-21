@@ -3,8 +3,6 @@
 import { useMutation } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
-import { useUserRole } from "@/hooks/use-user-role";
-import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
@@ -33,28 +31,23 @@ function generateToken(): string {
 }
 
 export default function InvitePage() {
-  const { orgId, clerkOrg } = useOrgData();
-  const { user } = useUser();
-  const { isOwner } = useUserRole();
+  const { orgId } = useOrgData();
   const router = useRouter();
   const createInvitation = useMutation(api.invitations.create);
 
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"therapist" | "manager">("therapist");
+  const [role, setRole] = useState<"booker" | "manager">("booker");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!orgId || !clerkOrg || !user?.id) return;
+    if (!orgId) return;
 
     setIsSubmitting(true);
     try {
       const token = generateToken();
       await createInvitation({
         orgId,
-        clerkOrgId: clerkOrg.id,
-        invitedBy: user.id,
-        invitedByName: user.fullName ?? undefined,
         email,
         role,
         token,
@@ -107,16 +100,16 @@ export default function InvitePage() {
               <Select
                 value={role}
                 onValueChange={(v) =>
-                  v && setRole(v as "therapist" | "manager")
+                  v && setRole(v as "booker" | "manager")
                 }
               >
                 <SelectTrigger className="w-full">
                   <SelectValue>
-                    {role === "therapist" ? "Booker" : "Manager"}
+                    {role === "booker" ? "Booker" : "Manager"}
                   </SelectValue>
                 </SelectTrigger>
                 <SelectContent className="min-w-[560px]">
-                  <SelectItem value="therapist">
+                  <SelectItem value="booker">
                     Booker — book rooms and view own invoices
                   </SelectItem>
                   <SelectItem value="manager">

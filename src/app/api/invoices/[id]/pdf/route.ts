@@ -30,18 +30,14 @@ export async function GET(
       invoiceId,
     });
 
-    // Fetch organization
-    const org = await convex.query(api.organizations.getByClerkOrgId, {
-      clerkOrgId: "", // We need org by ID, let's use a different approach
-    });
-
-    // Since we don't have a getById for orgs, we'll fetch all and find
+    // Fetch organization (scan listAll since invoices store orgId only)
     const allOrgs = await convex.query(api.organizations.listAll);
     const orgData = allOrgs.find((o) => o._id === invoice.orgId);
 
-    // Fetch user
-    const allUsers = await convex.query(api.users.listAll);
-    const userData = allUsers.find((u) => u.clerkUserId === invoice.userId);
+    // Fetch user by id
+    const userData = await convex.query(api.users.getById, {
+      id: invoice.userId,
+    });
 
     if (!orgData) {
       return new Response("Organization not found", { status: 404 });

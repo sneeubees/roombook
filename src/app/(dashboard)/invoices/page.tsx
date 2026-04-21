@@ -5,7 +5,6 @@ import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
 import { useSubscriptionTier } from "@/hooks/use-subscription-tier";
-import { useUser } from "@clerk/nextjs";
 import { useMemo } from "react";
 import { Lock } from "lucide-react";
 import {
@@ -49,7 +48,7 @@ const statusColors: Record<string, "default" | "secondary" | "destructive" | "ou
 };
 
 export default function InvoicesPage() {
-  const { user } = useUser();
+  const me = useQuery(api.users.currentUser);
   const { orgId, convexOrg } = useOrgData();
   const { isOwner } = useUserRole();
   const { can } = useSubscriptionTier();
@@ -97,18 +96,18 @@ export default function InvoicesPage() {
   }, [invoices]);
 
   const convexUsers = useQuery(
-    api.users.listByClerkUserIds,
-    bookerIds.length > 0 ? { clerkUserIds: bookerIds } : "skip"
+    api.users.listByIds,
+    bookerIds.length > 0 ? { ids: bookerIds as any } : "skip"
   );
 
-  function resolveUserName(clerkUserId: string): string {
-    const cu = convexUsers?.find((u) => u.clerkUserId === clerkUserId);
-    return cu?.fullName || clerkUserId;
+  function resolveUserName(userId: string): string {
+    const cu = convexUsers?.find((u) => u._id === userId);
+    return cu?.fullName || userId;
   }
 
   const filteredInvoices = isOwner
     ? invoices
-    : invoices?.filter((i) => i.userId === user?.id);
+    : invoices?.filter((i) => i.userId === me?._id);
 
   return (
     <div className="space-y-6">

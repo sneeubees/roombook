@@ -2,7 +2,6 @@
 
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
-import { useUser } from "@clerk/nextjs";
 import {
   Card,
   CardContent,
@@ -17,11 +16,7 @@ import { Bell, Check, CheckCheck } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 export default function NotificationsPage() {
-  const { user } = useUser();
-  const notifications = useQuery(
-    api.notifications.listByUser,
-    user?.id ? { userId: user.id } : "skip"
-  );
+  const notifications = useQuery(api.notifications.listByUser);
   const markAsRead = useMutation(api.notifications.markAsRead);
   const markAllAsRead = useMutation(api.notifications.markAllAsRead);
 
@@ -37,7 +32,7 @@ export default function NotificationsPage() {
             variant="outline"
             size="sm"
             onClick={() => {
-              if (user?.id) markAllAsRead({ userId: user.id });
+              markAllAsRead();
             }}
           >
             <CheckCheck className="h-4 w-4 mr-2" />

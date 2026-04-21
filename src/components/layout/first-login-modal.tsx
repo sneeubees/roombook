@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useUser } from "@clerk/nextjs";
-import { useMutation } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
@@ -26,23 +25,22 @@ interface FirstLoginModalProps {
 }
 
 export function FirstLoginModal({ open }: FirstLoginModalProps) {
-  const { user } = useUser();
+  const me = useQuery(api.users.currentUser);
   const { convexOrg, orgId } = useOrgData();
   const { isOwner } = useUserRole();
   const updateProfile = useMutation(api.users.updateProfile);
   const updateOrg = useMutation(api.organizations.update);
 
-  const [fullName, setFullName] = useState(user?.fullName ?? "");
+  const [fullName, setFullName] = useState(me?.fullName ?? "");
   const [phone, setPhone] = useState("");
   const [orgName, setOrgName] = useState(convexOrg?.name ?? "");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSave() {
-    if (!user?.id || !fullName.trim()) return;
+    if (!me?._id || !fullName.trim()) return;
     setIsSubmitting(true);
     try {
       await updateProfile({
-        clerkUserId: user.id,
         fullName: fullName.trim(),
         phone: phone.trim() || undefined,
       });

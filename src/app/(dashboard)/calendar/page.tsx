@@ -4,7 +4,6 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
-import { useUser, useOrganization } from "@clerk/nextjs";
 import { useState, useCallback, useMemo } from "react";
 import {
   format,
@@ -86,7 +85,7 @@ function durationLabel(start: string, end: string): string {
 }
 
 export default function CalendarPage() {
-  const { user } = useUser();
+  const me = useQuery(api.users.currentUser);
   const { orgId, convexOrg } = useOrgData();
   const { isOwner } = useUserRole();
   const showNames = isOwner || (convexOrg?.showBookerNames ?? false);
@@ -99,9 +98,16 @@ export default function CalendarPage() {
     const idx = sorted.findIndex((r) => r._id === roomId);
     return getRoomColor(idx >= 0 ? idx : 0);
   }
-  const { memberships } = useOrganization({
-    memberships: isOwner ? { pageSize: 100 } : undefined,
-  });
+
+  // Org members (for name resolution and "book for" dropdown)
+  const memberships = useQuery(
+    api.organizations.listMembershipsByOrg,
+    isOwner && orgId ? { orgId } : "skip"
+  );
+  const memberUserIds = useMemo(
+    () => (memberships ?? []).map((m) => m.userId),
+    [memberships]
+  );
 
   const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -113,7 +119,7 @@ export default function CalendarPage() {
   const [bookingEndTime, setBookingEndTime] = useState("10:00");
   const [bookingDescription, setBookingDescription] = useState("");
   const [bookingNotes, setBookingNotes] = useState("");
-  const [bookForUserId, setBookForUserId] = useState<string | null>(null); // null = self
+  const [bookForUserId, setBookForUserId] = useState<Id<"users"> | null>(null); // null = self
   const [showBookingDialog, setShowBookingDialog] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showBookedSlotDialog, setShowBookedSlotDialog] = useState(false);
@@ -150,21 +156,16 @@ export default function CalendarPage() {
   );
 
   // Get Convex user profiles for org members (for name resolution)
-  const memberUserIds = useMemo(
-    () => memberships?.data?.map((m) => m.publicUserData?.userId).filter(Boolean) as string[] ?? [],
-    [memberships?.data]
-  );
   const convexUsers = useQuery(
-    api.users.listByClerkUserIds,
-    memberUserIds.length > 0 ? { clerkUserIds: memberUserIds } : "skip"
+    api.users.listByIds,
+    memberUserIds.length > 0 ? { ids: memberUserIds } : "skip"
   );
 
-  // Helper to resolve a Clerk user ID to a display name
-  function resolveUserName(clerkUserId: string): string {
-    const convexUser = convexUsers?.find((u) => u.clerkUserId === clerkUserId);
-    if (convexUser?.fullName) return convexUser.fullName;
-    const member = memberships?.data?.find((m) => m.publicUserData?.userId === clerkUserId);
-    return member?.publicUserData?.identifier ?? clerkUserId;
+  // Helper to resolve a user ID to a display name
+  function resolveUserName(userId: string | null | undefined): string {
+    if (!userId) return "";
+    const u = convexUsers?.find((x) => x._id === userId);
+    return u?.fullName || u?.email || userId;
   }
 
   const createBooking = useMutation(api.bookings.create);
@@ -298,37 +299,23 @@ export default function CalendarPage() {
   }
 
   async function handleBookRoom() {
-    if (!orgId || !user?.id || !selectedRoom || !selectedDate) return;
+    if (!orgId || !me?._id || !selectedRoom || !selectedDate) return;
     setIsSubmitting(true);
     try {
       const roomObj = rooms?.find((r) => r._id === selectedRoom);
       const isHourly = (roomObj?.pricingMode ?? "day_based") === "hourly";
 
       // Determine who the booking is for
-      let targetUserId = user.id;
-      let targetUserName = user.fullName ?? user.primaryEmailAddress?.emailAddress ?? "Unknown";
-      let bookedBy: string | undefined;
-      let bookedByName: string | undefined;
-
-      if (isOwner && bookForUserId && bookForUserId !== user.id) {
-        // Owner booking on behalf of a booker
-        const member = memberships?.data?.find(
-          (m) => m.publicUserData?.userId === bookForUserId
-        );
-        targetUserId = bookForUserId;
-        targetUserName = resolveUserName(bookForUserId);
-        bookedBy = user.id;
-        bookedByName = user.fullName ?? "Owner";
-      }
+      const forUserId =
+        isOwner && bookForUserId && bookForUserId !== me._id
+          ? bookForUserId
+          : undefined;
 
       await createBooking({
         orgId,
         roomId: selectedRoom,
-        userId: targetUserId,
-        userName: targetUserName,
+        forUserId,
         description: bookingDescription || undefined,
-        bookedBy,
-        bookedByName,
         date: selectedDate,
         slotType: isHourly ? "session" : bookingSlot,
         startTime: isHourly ? bookingStartTime : undefined,
@@ -348,17 +335,16 @@ export default function CalendarPage() {
   }
 
   function handleCancelBooking() {
-    if (!selectedBookingId || !user?.id) return;
+    if (!selectedBookingId || !me?._id) return;
     setShowCancelConfirm(true);
   }
 
   async function confirmCancelBooking() {
-    if (!selectedBookingId || !user?.id) return;
+    if (!selectedBookingId || !me?._id) return;
     setIsSubmitting(true);
     try {
       const result = await cancelBooking({
         id: selectedBookingId,
-        cancelledBy: user.id,
         reason: cancelReason || undefined,
       });
       toast.success(
@@ -386,9 +372,9 @@ export default function CalendarPage() {
     startTime?: string,
     endTime?: string
   ) {
-    if (!orgId || !user?.id) return;
+    if (!orgId || !me?._id) return;
     try {
-      await joinWaitlist({ orgId, roomId, userId: user.id, date, slotType, startTime, endTime });
+      await joinWaitlist({ orgId, roomId, date, slotType, startTime, endTime });
       toast.success("Added to waitlist! You'll be notified if it opens up.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to join waitlist");
@@ -398,7 +384,7 @@ export default function CalendarPage() {
   function openBookedSlotDialog(bookingId: Id<"bookings">) {
     const booking = bookings?.find((b) => b._id === bookingId);
     if (!booking) return;
-    const isMine = booking.userId === user?.id;
+    const isMine = booking.userId === me?._id;
     setSelectedBookingId(bookingId);
     if (isMine || isOwner) {
       // Own booking or owner → detail dialog with edit + cancel
@@ -479,10 +465,10 @@ export default function CalendarPage() {
     main: string;
     sub?: string;
   } {
-    const isMine = booking.userId === user?.id;
+    const isMine = booking.userId === me?._id;
     if (isOwner) {
       return {
-        main: resolveUserName(booking.userId),
+        main: resolveUserName(booking.userId) || booking.userName,
         sub: booking.description ?? undefined,
       };
     }
@@ -609,7 +595,7 @@ export default function CalendarPage() {
                     timesOverlap(slotStart, slotEnd, b.startTime, b.endTime)
                 )
               : null;
-            const isMine = booking?.userId === user?.id;
+            const isMine = booking?.userId === me?._id;
 
             return (
               <div
@@ -629,7 +615,7 @@ export default function CalendarPage() {
                     ? `Blocked ${slotStart}`
                     : isBooked && booking
                       ? showNames
-                        ? `${resolveUserName(booking.userId)} (${booking.startTime}–${booking.endTime})`
+                        ? `${resolveUserName(booking.userId) || booking.userName} (${booking.startTime}–${booking.endTime})`
                         : `Booked (${booking.startTime}–${booking.endTime})`
                       : `Available ${slotStart}`
                 }
@@ -687,7 +673,7 @@ export default function CalendarPage() {
 
     if (hasFullDayBooking) {
       const booking = dayBookings.find((b) => b.slotType === "full_day")!;
-      const isMine = booking.userId === user?.id;
+      const isMine = booking.userId === me?._id;
       return (
         <div
           key={room._id}
@@ -697,7 +683,7 @@ export default function CalendarPage() {
           )}
           onClick={() => openBookedSlotDialog(booking._id)}
         >
-          {room.name}: {isMine ? "You" : showNames ? resolveUserName(booking.userId) : "Booked"}
+          {room.name}: {isMine ? "You" : showNames ? (resolveUserName(booking.userId) || booking.userName) : "Booked"}
         </div>
       );
     }
@@ -730,7 +716,7 @@ export default function CalendarPage() {
           }
 
           if (slotBooking) {
-            const isMine = slotBooking.userId === user?.id;
+            const isMine = slotBooking.userId === me?._id;
             return (
               <div
                 key={slot}
@@ -765,7 +751,6 @@ export default function CalendarPage() {
   }
 
   // Single-room hour-grid cell — used when one room is selected.
-  // One row per bookable hour; bookings positioned by start time with name centered.
   function renderSingleRoomCell(
     room: NonNullable<typeof rooms>[0],
     dateStr: string,
@@ -869,7 +854,7 @@ export default function CalendarPage() {
           const height = Math.max(((endMin - startMin) / 60) * hourPx, hourPx);
           const color = getColorForBooking(b);
           const { main } = getBookingLabel(b);
-          const isMine = b.userId === user?.id;
+          const isMine = b.userId === me?._id;
           const timeLabel =
             b.slotType === "session" && b.startTime && b.endTime
               ? `${b.startTime}–${b.endTime}`
@@ -1209,26 +1194,28 @@ export default function CalendarPage() {
 
           <div className="space-y-4">
             {/* Owner: Book on behalf of a member */}
-            {isOwner && memberships?.data && memberships.data.length > 0 && (
+            {isOwner && memberships && memberships.length > 0 && (
               <div className="space-y-2">
                 <Label>Book For</Label>
                 <Select
-                  value={bookForUserId ?? user?.id ?? ""}
-                  onValueChange={(v) => v && setBookForUserId(v === user?.id ? null : v)}
+                  value={bookForUserId ?? me?._id ?? ""}
+                  onValueChange={(v) => {
+                    if (!v) return;
+                    setBookForUserId(v === me?._id ? null : (v as Id<"users">));
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue>
-                      {resolveUserName(bookForUserId ?? user?.id ?? "")}
-                      {(!bookForUserId || bookForUserId === user?.id) ? " (Myself)" : ""}
+                      {resolveUserName(bookForUserId ?? me?._id)}
+                      {(!bookForUserId || bookForUserId === me?._id) ? " (Myself)" : ""}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
-                    {memberships.data.map((m) => {
-                      const uid = m.publicUserData?.userId ?? "";
-                      const isSelf = uid === user?.id;
+                    {memberships.map((m) => {
+                      const isSelf = m.userId === me?._id;
                       return (
-                        <SelectItem key={uid || m.id} value={uid}>
-                          {resolveUserName(uid)}{isSelf ? " (Myself)" : ""}
+                        <SelectItem key={m._id} value={m.userId}>
+                          {resolveUserName(m.userId)}{isSelf ? " (Myself)" : ""}
                         </SelectItem>
                       );
                     })}
@@ -1468,8 +1455,6 @@ export default function CalendarPage() {
                       try {
                         await editBookingDetails({
                           id: selectedBookingId,
-                          actorId: user?.id,
-                          actorName: user?.fullName ?? undefined,
                           description: editDescription || undefined,
                           notes: editNotes || undefined,
                           startTime: isSession ? updateStartTime : undefined,
@@ -1530,7 +1515,7 @@ export default function CalendarPage() {
               <div className="space-y-4">
                 <p className="text-sm text-muted-foreground">
                   This slot is already booked
-                  {showNames ? ` by ${resolveUserName(booking.userId)}` : ""}.
+                  {showNames ? ` by ${resolveUserName(booking.userId) || booking.userName}` : ""}.
                 </p>
                 <div className="space-y-1 text-sm">
                   <p><strong>Room:</strong> {room?.name}</p>

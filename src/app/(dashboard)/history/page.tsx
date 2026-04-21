@@ -4,7 +4,6 @@ import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
-import { useUser, useOrganization } from "@clerk/nextjs";
 import { useState, useMemo } from "react";
 import {
   Card,
@@ -32,37 +31,38 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { History } from "lucide-react";
 import { format, parseISO, formatDistanceToNow } from "date-fns";
+import type { Id } from "../../../../convex/_generated/dataModel";
 
 export default function BookingHistoryPage() {
-  const { user } = useUser();
+  const me = useQuery(api.users.currentUser);
   const { orgId } = useOrgData();
   const { isOwner } = useUserRole();
-  const { memberships } = useOrganization({
-    memberships: isOwner ? { pageSize: 100 } : undefined,
-  });
 
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const memberships = useQuery(
+    api.organizations.listMembershipsByOrg,
+    isOwner && orgId ? { orgId } : "skip"
+  );
+
+  const [selectedUserId, setSelectedUserId] = useState<Id<"users"> | null>(null);
 
   // Get all org members' Convex profiles for name resolution
   const memberUserIds = useMemo(
-    () =>
-      (memberships?.data
-        ?.map((m) => m.publicUserData?.userId)
-        .filter(Boolean) as string[]) ?? [],
-    [memberships?.data]
+    () => (memberships ?? []).map((m) => m.userId),
+    [memberships]
   );
   const convexUsers = useQuery(
-    api.users.listByClerkUserIds,
-    memberUserIds.length > 0 ? { clerkUserIds: memberUserIds } : "skip"
+    api.users.listByIds,
+    memberUserIds.length > 0 ? { ids: memberUserIds } : "skip"
   );
 
-  function resolveUserName(clerkUserId: string): string {
-    const cu = convexUsers?.find((u) => u.clerkUserId === clerkUserId);
-    return cu?.fullName || clerkUserId;
+  function resolveUserName(userId: string | null | undefined): string {
+    if (!userId) return "—";
+    const cu = convexUsers?.find((u) => u._id === userId);
+    return cu?.fullName || cu?.email || userId;
   }
 
   // Determine which user's bookings to show
-  const targetUserId = isOwner ? (selectedUserId ?? user?.id) : user?.id;
+  const targetUserId = isOwner ? (selectedUserId ?? me?._id) : me?._id;
 
   // Get all bookings for the target user
   const allBookings = useQuery(
@@ -115,27 +115,24 @@ export default function BookingHistoryPage() {
         <TabsContent value="bookings" className="space-y-6">
 
       {/* Owner: user selector */}
-      {isOwner && memberships?.data && (
+      {isOwner && memberships && memberships.length > 0 && (
         <div className="max-w-xs">
           <Select
-            value={selectedUserId ?? user?.id ?? ""}
-            onValueChange={(v) => v && setSelectedUserId(v)}
+            value={selectedUserId ?? me?._id ?? ""}
+            onValueChange={(v) => v && setSelectedUserId(v as Id<"users">)}
           >
             <SelectTrigger>
               <SelectValue>
-                {resolveUserName(selectedUserId ?? user?.id ?? "")}
+                {resolveUserName(selectedUserId ?? me?._id)}
               </SelectValue>
             </SelectTrigger>
             <SelectContent>
-              {memberships.data.map((m) => {
-                const uid = m.publicUserData?.userId ?? "";
-                return (
-                  <SelectItem key={uid || m.id} value={uid}>
-                    {resolveUserName(uid)}
-                    {uid === user?.id ? " (You)" : ""}
-                  </SelectItem>
-                );
-              })}
+              {memberships.map((m) => (
+                <SelectItem key={m._id} value={m.userId}>
+                  {resolveUserName(m.userId)}
+                  {m.userId === me?._id ? " (You)" : ""}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>

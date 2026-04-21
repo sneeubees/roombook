@@ -9,7 +9,7 @@ export const sendBookingConfirmation = internalAction({
     bookingId: v.id("bookings"),
   },
   handler: async (ctx, args) => {
-    const booking = await ctx.runQuery(internal.emailHelpers.getBookingWithDetails, {
+    const booking: any = await ctx.runQuery(internal.emailHelpers.getBookingWithDetails, {
       bookingId: args.bookingId,
     });
     if (!booking) return;
@@ -53,7 +53,7 @@ export const sendBookingCancellation = internalAction({
     isBillable: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const booking = await ctx.runQuery(internal.emailHelpers.getBookingWithDetails, {
+    const booking: any = await ctx.runQuery(internal.emailHelpers.getBookingWithDetails, {
       bookingId: args.bookingId,
     });
     if (!booking) return;
@@ -65,7 +65,6 @@ export const sendBookingCancellation = internalAction({
           ? "Full Day"
           : booking.slotType.toUpperCase();
 
-    // Email the booker
     try {
       await fetch(`${APP_URL}/api/email/send`, {
         method: "POST",
@@ -126,15 +125,20 @@ export const sendInvoiceEmail = internalAction({
 
 export const sendWaitlistNotification = internalAction({
   args: {
-    userId: v.string(),
+    userId: v.union(v.id("users"), v.string()),
     roomName: v.string(),
     date: v.string(),
     slot: v.string(),
     orgName: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await ctx.runQuery(internal.emailHelpers.getUserByClerkId, {
-      clerkUserId: args.userId,
+    // Waitlist may be notified with an Id or the "org_owners" broadcast marker.
+    if (typeof args.userId === "string" && !args.userId.startsWith("jn")) {
+      // Broadcast / non-id marker — skip.
+      return;
+    }
+    const user: any = await ctx.runQuery(internal.emailHelpers.getUserById, {
+      userId: args.userId as any,
     });
     if (!user) return;
 

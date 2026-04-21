@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 export const listByOrg = query({
   args: {
@@ -27,7 +28,6 @@ export const create = mutation({
   args: {
     orgId: v.id("organizations"),
     roomId: v.id("rooms"),
-    blockedBy: v.string(),
     startDate: v.string(),
     endDate: v.string(),
     slotType: v.union(
@@ -36,23 +36,24 @@ export const create = mutation({
       v.literal("pm"),
       v.literal("time_range")
     ),
-    startTime: v.optional(v.string()), // "HH:mm" for time_range
-    endTime: v.optional(v.string()), // "HH:mm" for time_range
+    startTime: v.optional(v.string()),
+    endTime: v.optional(v.string()),
     reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    const blockedBy = await getAuthUserId(ctx);
+    if (!blockedBy) throw new Error("Not authenticated");
+
     if (args.slotType === "time_range") {
       if (!args.startTime || !args.endTime) {
-        throw new Error(
-          "Start time and end time are required for time range blocks"
-        );
+        throw new Error("Start time and end time are required for time range blocks");
       }
       if (args.startTime >= args.endTime) {
         throw new Error("Start time must be before end time");
       }
     }
 
-    return await ctx.db.insert("roomBlocks", args);
+    return await ctx.db.insert("roomBlocks", { ...args, blockedBy });
   },
 });
 

@@ -1,6 +1,5 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
 import { useQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
@@ -16,19 +15,13 @@ import {
 } from "@/components/ui/card";
 import { CalendarDays, DoorOpen, FileText, Users } from "lucide-react";
 import { UnverifiedDomainsBanner } from "@/components/unverified-domains-banner";
-import { Id } from "../../../../convex/_generated/dataModel";
 import { useMemo } from "react";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 
 export default function DashboardPage() {
-  const { user } = useUser();
+  const me = useQuery(api.users.currentUser);
   const { orgId } = useOrgData();
   const { isOwner } = useUserRole();
-
-  const convexUser = useQuery(
-    api.users.getByClerkUserId,
-    user?.id ? { clerkUserId: user.id } : "skip"
-  );
 
   const today = format(new Date(), "yyyy-MM-dd");
   const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
@@ -51,8 +44,8 @@ export default function DashboardPage() {
 
   const myBookings = useQuery(
     api.bookings.listByUser,
-    orgId && user?.id
-      ? { orgId, userId: user.id, startDate: weekStart, endDate: weekEnd }
+    orgId && me?._id
+      ? { orgId, userId: me._id, startDate: weekStart, endDate: weekEnd }
       : "skip"
   );
 
@@ -64,13 +57,13 @@ export default function DashboardPage() {
   }, [todayBookings]);
 
   const convexUsers = useQuery(
-    api.users.listByClerkUserIds,
-    bookerIds.length > 0 ? { clerkUserIds: bookerIds } : "skip"
+    api.users.listByIds,
+    bookerIds.length > 0 ? { ids: bookerIds as any } : "skip"
   );
 
-  function resolveUserName(clerkUserId: string): string {
-    const cu = convexUsers?.find((u) => u.clerkUserId === clerkUserId);
-    return cu?.fullName || clerkUserId;
+  function resolveUserName(userId: string): string {
+    const cu = convexUsers?.find((u) => u._id === userId);
+    return cu?.fullName || userId;
   }
 
   return (
@@ -79,7 +72,7 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">
-            Welcome back, {convexUser?.fullName?.split(" ")[0] ?? user?.firstName ?? "there"}
+            Welcome back, {me?.fullName?.split(" ")[0] ?? "there"}
           </h1>
           <p className="text-muted-foreground">
             {format(new Date(), "EEEE, d MMMM yyyy")}
@@ -173,7 +166,7 @@ export default function DashboardPage() {
           {todayBookings && todayBookings.length > 0 ? (
             <div className="space-y-3">
               {todayBookings
-                .filter((b) => (isOwner ? true : b.userId === user?.id))
+                .filter((b) => (isOwner ? true : b.userId === me?._id))
                 .map((booking) => {
                   const room = rooms?.find((r) => r._id === booking.roomId);
                   return (

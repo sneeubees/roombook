@@ -54,7 +54,7 @@ export const getBillableBookings = internalQuery({
 export const createInvoiceWithLineItems = internalMutation({
   args: {
     orgId: v.id("organizations"),
-    userId: v.string(),
+    userId: v.id("users"),
     invoiceNumber: v.string(),
     periodStart: v.string(),
     periodEnd: v.string(),

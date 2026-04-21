@@ -3,7 +3,6 @@
 import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
-import { useOrganization, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { useState, useMemo } from "react";
 import {
@@ -33,93 +32,52 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, X, Pencil, Trash2 } from "lucide-react";
+import { Plus, X, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import type { Id } from "../../../../convex/_generated/dataModel";
 
 export default function TeamPage() {
   const { orgId } = useOrgData();
-  const { user } = useUser();
-  const { organization, memberships } = useOrganization({
-    memberships: { pageSize: 100 },
-  });
+  const me = useQuery(api.users.currentUser);
 
+  const memberships = useQuery(
+    api.organizations.listMembershipsByOrg,
+    orgId ? { orgId } : "skip"
+  );
   const invitations = useQuery(
     api.invitations.listByOrg,
     orgId ? { orgId } : "skip"
   );
   const revokeInvitation = useMutation(api.invitations.revoke);
-  const updateProfile = useMutation(api.users.updateProfile);
+  const removeMember = useMutation(api.organizations.removeMember);
 
   // Query Convex users for name resolution
   const memberUserIds = useMemo(
-    () =>
-      (memberships?.data
-        ?.map((m) => m.publicUserData?.userId)
-        .filter(Boolean) as string[]) ?? [],
-    [memberships?.data]
+    () => (memberships ?? []).map((m) => m.userId),
+    [memberships]
   );
   const convexUsers = useQuery(
-    api.users.listByClerkUserIds,
-    memberUserIds.length > 0 ? { clerkUserIds: memberUserIds } : "skip"
+    api.users.listByIds,
+    memberUserIds.length > 0 ? { ids: memberUserIds } : "skip"
   );
 
-  function resolveUserName(clerkUserId: string): string {
-    const cu = convexUsers?.find((u) => u.clerkUserId === clerkUserId);
-    if (cu?.fullName) return cu.fullName;
-    const member = memberships?.data?.find(
-      (m) => m.publicUserData?.userId === clerkUserId
-    );
-    return member?.publicUserData?.identifier ?? clerkUserId;
+  function resolveUser(userId: string) {
+    return convexUsers?.find((u) => u._id === userId);
   }
 
-  function resolveUserPhone(clerkUserId: string): string {
-    return convexUsers?.find((u) => u.clerkUserId === clerkUserId)?.phone ?? "";
-  }
-
-  // Edit member dialog
-  const [editDialogOpen, setEditDialogOpen] = useState(false);
-  const [editUserId, setEditUserId] = useState("");
-  const [editName, setEditName] = useState("");
-  const [editPhone, setEditPhone] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Remove member dialog
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
-  const [removeMembershipId, setRemoveMembershipId] = useState("");
+  const [removeUserId, setRemoveUserId] = useState<Id<"users"> | null>(null);
   const [removeMemberName, setRemoveMemberName] = useState("");
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  function getMemberDisplayName(m: any) {
-    const uid = m.publicUserData?.userId ?? "";
-    return resolveUserName(uid);
-  }
-
-  async function handleEditSave() {
-    if (!editUserId || !editName.trim()) return;
-    setIsSubmitting(true);
-    try {
-      await updateProfile({
-        clerkUserId: editUserId,
-        fullName: editName.trim(),
-        phone: editPhone.trim() || undefined,
-      });
-      toast.success("Member updated");
-      setEditDialogOpen(false);
-    } catch (error) {
-      toast.error(
-        error instanceof Error ? error.message : "Failed to update member"
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
-
   async function handleRemoveMember() {
-    if (!removeMembershipId || !organization) return;
+    if (!removeUserId || !orgId) return;
     setIsSubmitting(true);
     try {
-      await organization.removeMember(removeMembershipId);
+      await removeMember({ orgId, userId: removeUserId });
       toast.success(`${removeMemberName} has been removed from the team`);
       setRemoveDialogOpen(false);
     } catch (error) {
@@ -161,17 +119,17 @@ export default function TeamPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {memberships?.data?.map((membership) => {
-                const displayName = getMemberDisplayName(membership);
-                const email = membership.publicUserData?.identifier ?? "";
-                const isMe =
-                  membership.publicUserData?.userId === user?.id;
-                const isOwnerRole = membership.role === "org:admin";
-                const isManagerRole = membership.role === "org:manager";
-                const roleLabel = isOwnerRole ? "Owner" : isManagerRole ? "Manager" : "Booker";
+              {memberships?.map((membership) => {
+                const u = resolveUser(membership.userId);
+                const displayName = u?.fullName || u?.email || membership.userId;
+                const email = u?.email ?? "";
+                const isMe = membership.userId === me?._id;
+                const role = membership.role;
+                const roleLabel =
+                  role === "owner" ? "Owner" : role === "manager" ? "Manager" : "Booker";
 
                 return (
-                  <TableRow key={membership.id}>
+                  <TableRow key={membership._id}>
                     <TableCell className="font-medium">
                       {displayName}
                       {isMe && (
@@ -183,36 +141,29 @@ export default function TeamPage() {
                     <TableCell>{email}</TableCell>
                     <TableCell>
                       <Badge
-                        variant={isOwnerRole ? "default" : isManagerRole ? "outline" : "secondary"}
+                        variant={
+                          role === "owner"
+                            ? "default"
+                            : role === "manager"
+                              ? "outline"
+                              : "secondary"
+                        }
                       >
                         {roleLabel}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
-                      {format(new Date(membership.createdAt), "d MMM yyyy")}
+                      {format(new Date(membership._creationTime), "d MMM yyyy")}
                     </TableCell>
                     <TableCell>
-                      {!isMe && (
+                      {!isMe && role !== "owner" && (
                         <div className="flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => {
-                              const uid = membership.publicUserData?.userId ?? "";
-                              setEditUserId(uid);
-                              setEditName(resolveUserName(uid));
-                              setEditPhone(resolveUserPhone(uid));
-                              setEditDialogOpen(true);
-                            }}
-                          >
-                            <Pencil className="h-3 w-3" />
-                          </Button>
                           <Button
                             variant="ghost"
                             size="sm"
                             className="text-destructive hover:text-destructive"
                             onClick={() => {
-                              setRemoveMembershipId(membership.id);
+                              setRemoveUserId(membership.userId);
                               setRemoveMemberName(displayName);
                               setRemoveDialogOpen(true);
                             }}
@@ -288,53 +239,6 @@ export default function TeamPage() {
             </CardContent>
           </Card>
         )}
-
-      {/* Edit Member Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Edit Member</DialogTitle>
-            <DialogDescription>
-              Update this member&apos;s name and contact details.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="edit-name">Full Name</Label>
-              <Input
-                id="edit-name"
-                value={editName}
-                onChange={(e) => setEditName(e.target.value)}
-                placeholder="Member's full name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="edit-phone">Contact Number</Label>
-              <Input
-                id="edit-phone"
-                type="tel"
-                value={editPhone}
-                onChange={(e) => setEditPhone(e.target.value)}
-                placeholder="e.g., 082 123 4567"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setEditDialogOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleEditSave}
-              disabled={isSubmitting || !editName.trim()}
-            >
-              {isSubmitting ? "Saving..." : "Save"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Remove Member Confirmation */}
       <Dialog open={removeDialogOpen} onOpenChange={setRemoveDialogOpen}>

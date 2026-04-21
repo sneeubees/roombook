@@ -1,8 +1,9 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 export const listByUser = query({
-  args: { userId: v.string() },
+  args: { userId: v.id("users") },
   handler: async (ctx, args) => {
     return await ctx.db
       .query("waitlist")
@@ -15,7 +16,6 @@ export const join = mutation({
   args: {
     orgId: v.id("organizations"),
     roomId: v.id("rooms"),
-    userId: v.string(),
     date: v.string(),
     slotType: v.union(
       v.literal("full_day"),
@@ -27,27 +27,24 @@ export const join = mutation({
     endTime: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    // Check if already on waitlist
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
     const existing = await ctx.db
       .query("waitlist")
       .withIndex("by_room_date_slot", (q) =>
-        q
-          .eq("roomId", args.roomId)
-          .eq("date", args.date)
-          .eq("slotType", args.slotType)
+        q.eq("roomId", args.roomId).eq("date", args.date).eq("slotType", args.slotType)
       )
       .collect();
 
     const alreadyWaiting = existing.find(
-      (w) => w.userId === args.userId && w.status === "waiting"
+      (w) => w.userId === userId && w.status === "waiting"
     );
-
-    if (alreadyWaiting) {
-      throw new Error("Already on the waitlist for this slot");
-    }
+    if (alreadyWaiting) throw new Error("Already on the waitlist for this slot");
 
     return await ctx.db.insert("waitlist", {
       ...args,
+      userId,
       status: "waiting",
     });
   },

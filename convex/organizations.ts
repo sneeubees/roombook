@@ -1,19 +1,69 @@
 import { v } from "convex/values";
-import { mutation, query } from "./_generated/server";
+import { mutation, query, QueryCtx } from "./_generated/server";
+import { getAuthUserId } from "@convex-dev/auth/server";
+import { Id } from "./_generated/dataModel";
 
-export const getByClerkOrgId = query({
-  args: { clerkOrgId: v.string() },
+async function getMembershipFor(
+  ctx: QueryCtx,
+  orgId: Id<"organizations">,
+  userId: Id<"users">
+) {
+  return ctx.db
+    .query("memberships")
+    .withIndex("by_org_user", (q) => q.eq("orgId", orgId).eq("userId", userId))
+    .unique();
+}
+
+// Org + role for the current user (picks the first membership if many).
+export const currentOrg = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return null;
+    const memberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    if (memberships.length === 0) return null;
+    // Prefer an owner membership; otherwise the first.
+    const preferred =
+      memberships.find((m) => m.role === "owner") ?? memberships[0];
+    const org = await ctx.db.get(preferred.orgId);
+    if (!org) return null;
+    return { org, membership: preferred };
+  },
+});
+
+export const listMembershipsByOrg = query({
+  args: { orgId: v.id("organizations") },
   handler: async (ctx, args) => {
     return await ctx.db
-      .query("organizations")
-      .withIndex("by_clerkOrgId", (q) => q.eq("clerkOrgId", args.clerkOrgId))
-      .unique();
+      .query("memberships")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .collect();
+  },
+});
+
+export const listMyMemberships = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) return [];
+    const memberships = await ctx.db
+      .query("memberships")
+      .withIndex("by_user", (q) => q.eq("userId", userId))
+      .collect();
+    const enriched = [];
+    for (const m of memberships) {
+      const org = await ctx.db.get(m.orgId);
+      if (org) enriched.push({ ...m, org });
+    }
+    return enriched;
   },
 });
 
 export const create = mutation({
   args: {
-    clerkOrgId: v.string(),
     name: v.string(),
     slug: v.string(),
     address: v.optional(v.string()),
@@ -21,14 +71,17 @@ export const create = mutation({
     email: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const existing = await ctx.db
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+
+    // Enforce unique slug.
+    const bySlug = await ctx.db
       .query("organizations")
-      .withIndex("by_clerkOrgId", (q) => q.eq("clerkOrgId", args.clerkOrgId))
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .unique();
+    if (bySlug) throw new Error("That organisation slug is already in use");
 
-    if (existing) return existing._id;
-
-    return await ctx.db.insert("organizations", {
+    const orgId = await ctx.db.insert("organizations", {
       ...args,
       invoiceDayOfMonth: 1,
       invoicePrefix: "INV",
@@ -37,7 +90,16 @@ export const create = mutation({
       vatRate: 0.15,
       subscriptionTier: "basic" as const,
       status: "pending_approval" as const,
+      ownerUserId: userId,
     });
+
+    await ctx.db.insert("memberships", {
+      orgId,
+      userId,
+      role: "owner",
+    });
+
+    return orgId;
   },
 });
 
@@ -123,5 +185,47 @@ export const suspend = mutation({
   args: { id: v.id("organizations") },
   handler: async (ctx, args) => {
     await ctx.db.patch(args.id, { status: "suspended" });
+  },
+});
+
+// Remove a member from an organisation. Owner membership cannot be removed
+// unless the org is being deleted.
+export const removeMember = mutation({
+  args: { orgId: v.id("organizations"), userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const actorId = await getAuthUserId(ctx);
+    if (!actorId) throw new Error("Not authenticated");
+    const actor = await getMembershipFor(ctx, args.orgId, actorId);
+    if (!actor || (actor.role !== "owner" && actor.role !== "manager")) {
+      throw new Error("Only owner or manager can remove members");
+    }
+    const target = await getMembershipFor(ctx, args.orgId, args.userId);
+    if (!target) throw new Error("Member not found");
+    if (target.role === "owner") {
+      throw new Error("The owner cannot be removed");
+    }
+    await ctx.db.delete(target._id);
+  },
+});
+
+export const updateMemberRole = mutation({
+  args: {
+    orgId: v.id("organizations"),
+    userId: v.id("users"),
+    role: v.union(v.literal("manager"), v.literal("booker")),
+  },
+  handler: async (ctx, args) => {
+    const actorId = await getAuthUserId(ctx);
+    if (!actorId) throw new Error("Not authenticated");
+    const actor = await getMembershipFor(ctx, args.orgId, actorId);
+    if (!actor || actor.role !== "owner") {
+      throw new Error("Only the owner can change member roles");
+    }
+    const target = await getMembershipFor(ctx, args.orgId, args.userId);
+    if (!target) throw new Error("Member not found");
+    if (target.role === "owner") {
+      throw new Error("Use a separate transfer flow to change the owner");
+    }
+    await ctx.db.patch(target._id, { role: args.role });
   },
 });

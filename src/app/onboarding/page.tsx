@@ -1,62 +1,117 @@
 "use client";
 
-import { useOrganizationList, useUser } from "@clerk/nextjs";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DoorOpen } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .slice(0, 48) || `org-${Math.random().toString(36).slice(2, 8)}`;
+}
 
 export default function OnboardingPage() {
-  const { createOrganization, setActive, userMemberships } =
-    useOrganizationList({ userMemberships: { pageSize: 1 } });
-  const { user, isSignedIn } = useUser();
+  const { isAuthenticated, isLoading } = useConvexAuth();
+  const me = useQuery(api.users.currentUser);
+  const currentOrg = useQuery(api.organizations.currentOrg);
+  const createOrg = useMutation(api.organizations.create);
   const router = useRouter();
   const creating = useRef(false);
 
+  const [orgName, setOrgName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   useEffect(() => {
-    if (!isSignedIn) {
+    if (!isLoading && !isAuthenticated) {
       router.push("/sign-in");
-      return;
     }
+  }, [isAuthenticated, isLoading, router]);
 
-    // If user already has an org, just go to dashboard
-    if (userMemberships?.data && userMemberships.data.length > 0) {
-      const firstOrg = userMemberships.data[0].organization;
-      if (setActive) {
-        setActive({ organization: firstOrg.id }).then(() => {
-          router.push("/dashboard");
-        });
-      }
-      return;
+  useEffect(() => {
+    // If user already has an org, go to dashboard
+    if (currentOrg?.org) {
+      router.push("/dashboard");
     }
+  }, [currentOrg, router]);
 
-    // Auto-create org with user's name
-    if (
-      createOrganization &&
-      setActive &&
-      user &&
-      userMemberships?.data?.length === 0 &&
-      !creating.current
-    ) {
-      creating.current = true;
-      const name = user.fullName
-        ? `${user.fullName}'s Practice`
-        : "My Practice";
-
-      createOrganization({ name })
-        .then((org) => setActive({ organization: org.id }))
-        .then(() => router.push("/dashboard"))
-        .catch((err) => {
-          console.error("Failed to create organization:", err);
-          creating.current = false;
-        });
+  useEffect(() => {
+    if (me && !orgName) {
+      setOrgName(me.fullName ? `${me.fullName}'s Practice` : "My Practice");
     }
-  }, [isSignedIn, user, createOrganization, setActive, userMemberships, router]);
+  }, [me, orgName]);
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    if (!orgName.trim() || creating.current) return;
+    creating.current = true;
+    setIsSubmitting(true);
+    try {
+      const slug = slugify(orgName);
+      await createOrg({ name: orgName.trim(), slug });
+      router.push("/dashboard");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to create organization"
+      );
+      creating.current = false;
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  if (isLoading || currentOrg === undefined) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+        <div className="text-center space-y-4">
+          <DoorOpen className="h-12 w-12 text-primary mx-auto animate-pulse" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30">
-      <div className="text-center space-y-4">
-        <DoorOpen className="h-12 w-12 text-primary mx-auto animate-pulse" />
-        <p className="text-muted-foreground">Setting up your workspace...</p>
+    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-6">
+      <div className="w-full max-w-md space-y-6 rounded-lg border bg-background p-8 shadow-sm">
+        <div className="text-center space-y-2">
+          <DoorOpen className="h-10 w-10 text-primary mx-auto" />
+          <h1 className="text-2xl font-bold">Set up your practice</h1>
+          <p className="text-sm text-muted-foreground">
+            Give your organization a name to get started.
+          </p>
+        </div>
+
+        <form onSubmit={handleCreate} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="org-name">Organization Name</Label>
+            <Input
+              id="org-name"
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              placeholder="e.g., PhysioCare Practice"
+              autoFocus
+              required
+            />
+          </div>
+
+          <Button
+            type="submit"
+            className="w-full"
+            disabled={isSubmitting || !orgName.trim()}
+          >
+            {isSubmitting ? "Creating..." : "Create Practice"}
+          </Button>
+        </form>
       </div>
     </div>
   );

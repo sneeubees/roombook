@@ -245,7 +245,7 @@ export default function AdminPage() {
                       onClick={async () => {
                         const newVal = !u.isSuperAdmin;
                         await setSuperAdmin({
-                          clerkUserId: u.clerkUserId,
+                          targetUserId: u._id,
                           isSuperAdmin: newVal,
                         });
                         toast.success(

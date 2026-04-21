@@ -14,7 +14,7 @@ export const listByOrg = query({
 });
 
 export const listByUser = query({
-  args: { userId: v.string() },
+  args: { userId: v.id("users") },
   handler: async (ctx, args) => {
     return await ctx.db
       .query("invoices")
@@ -283,19 +283,24 @@ export const generateNow = action({
       throw new Error(`No billable bookings found for period ${startStr} to ${endStr}`);
     }
 
-    // Group by user
-    const byUser = new Map<string, { userName: string; bookings: any[] }>();
+    const byUser = new Map<string, { userId: any; userName: string; bookings: any[] }>();
     for (const b of allBookings) {
-      const existing = byUser.get(b.userId) ?? { userName: b.userName, bookings: [] as any[] };
+      const key = b.userId as unknown as string;
+      const existing = byUser.get(key) ?? {
+        userId: b.userId,
+        userName: b.userName,
+        bookings: [] as any[],
+      };
       existing.bookings.push(b);
-      byUser.set(b.userId, existing);
+      byUser.set(key, existing);
     }
 
     let count = 0;
     let seq = 1;
     const pEnd = new Date(endStr);
 
-    for (const [userId, data] of byUser) {
+    for (const [, data] of byUser) {
+      const userId = data.userId;
       const subtotal = data.bookings.reduce((s: number, b: any) => s + b.rateApplied, 0);
       const taxAmount = Math.round(subtotal * org.vatRate);
       const total = subtotal + taxAmount;
