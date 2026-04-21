@@ -126,6 +126,53 @@ export const sendInvoiceEmail = internalAction({
   },
 });
 
+export const sendInvitationEmail = internalAction({
+  args: {
+    invitationId: v.id("invitations"),
+  },
+  handler: async (ctx, args) => {
+    const invitation: any = await ctx.runQuery(
+      internal.emailHelpers.getInvitationWithDetails,
+      { invitationId: args.invitationId }
+    );
+    if (!invitation) return;
+
+    // Prefer a verified white-label domain; fallback to the app URL.
+    const domains: any[] = await ctx.runQuery(internal.emailHelpers.getVerifiedDomainsForOrg, {
+      orgId: invitation.orgId,
+    });
+    const verifiedDomain = domains.find((d) => d.isVerified);
+    const origin = verifiedDomain ? `https://${verifiedDomain.domain}` : APP_URL;
+    const inviteUrl = `${origin}/invite/${invitation.token}`;
+    const expiresOn = new Date(invitation.expiresAt).toLocaleDateString("en-ZA", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+
+    try {
+      await fetch(`${APP_URL}/api/email/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "invitation",
+          data: {
+            email: invitation.email,
+            replyTo: invitation.ownerEmail,
+            orgName: invitation.orgName,
+            inviterName: invitation.inviterName,
+            role: invitation.role,
+            inviteUrl,
+            expiresOn,
+          },
+        }),
+      });
+    } catch (e) {
+      console.error("Failed to send invitation email:", e);
+    }
+  },
+});
+
 export const sendWaitlistNotification = internalAction({
   args: {
     userId: v.union(v.id("users"), v.string()),

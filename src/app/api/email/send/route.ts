@@ -3,6 +3,8 @@ import { bookingConfirmationHtml } from "@/lib/email/templates/booking-confirmat
 import { bookingCancellationHtml } from "@/lib/email/templates/booking-cancellation";
 import { invoiceReadyHtml } from "@/lib/email/templates/invoice-ready";
 import { waitlistAvailableHtml } from "@/lib/email/templates/waitlist-available";
+import { invitationEmailHtml } from "@/lib/email/templates/invitation-email";
+import { emailVerificationHtml } from "@/lib/email/templates/email-verification";
 
 export async function POST(request: Request) {
   try {
@@ -62,6 +64,26 @@ export async function POST(request: Request) {
           slot: data.slot,
           orgName: data.orgName,
           bookingUrl: data.bookingUrl,
+        });
+        break;
+
+      case "invitation":
+        subject = `You've been invited to ${data.orgName}`;
+        html = invitationEmailHtml({
+          orgName: data.orgName,
+          inviterName: data.inviterName,
+          role: data.role,
+          inviteUrl: data.inviteUrl,
+          expiresOn: data.expiresOn,
+        });
+        break;
+
+      case "email_verification":
+        subject = "Your verification code";
+        html = emailVerificationHtml({
+          code: data.code,
+          orgName: data.orgName,
+          expiresIn: data.expiresIn,
         });
         break;
 

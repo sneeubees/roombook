@@ -3,6 +3,8 @@ import { bookingConfirmationHtml } from "@/lib/email/templates/booking-confirmat
 import { bookingCancellationHtml } from "@/lib/email/templates/booking-cancellation";
 import { invoiceReadyHtml } from "@/lib/email/templates/invoice-ready";
 import { waitlistAvailableHtml } from "@/lib/email/templates/waitlist-available";
+import { invitationEmailHtml } from "@/lib/email/templates/invitation-email";
+import { emailVerificationHtml } from "@/lib/email/templates/email-verification";
 import { InvoiceDocument, type InvoiceData } from "@/lib/pdf/invoice-template";
 import { renderToBuffer } from "@react-pdf/renderer";
 import React from "react";
@@ -73,7 +75,31 @@ export async function GET(request: Request) {
     }),
   });
 
-  // 4. Invoice ready — with a real PDF attached
+  // 4. Invitation email
+  results.invitation = await sendEmail({
+    to,
+    subject: "[TEST] You've been invited to PhysioCare Practice",
+    html: invitationEmailHtml({
+      orgName: "PhysioCare Practice",
+      inviterName: "The Practice Owner",
+      role: "booker",
+      inviteUrl: "https://roombook.co.za/invite/sample-token-abc123",
+      expiresOn: "1 May 2026",
+    }),
+  });
+
+  // 5. Email verification code
+  results.email_verification = await sendEmail({
+    to,
+    subject: "[TEST] Your verification code",
+    html: emailVerificationHtml({
+      code: "483021",
+      orgName: "RoomBook",
+      expiresIn: "15 minutes",
+    }),
+  });
+
+  // 6. Invoice ready — with a real PDF attached
   const sampleInvoice: InvoiceData = {
     orgName: "PhysioCare Practice",
     orgAddress: "12 Long Street, Cape Town, 8001",

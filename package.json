@@ -32,6 +32,7 @@
     "next": "16.2.3",
     "next-themes": "^0.4.6",
     "nodemailer": "^6.10.1",
+    "oslo": "^1.2.1",
     "react": "19.2.4",
     "react-day-picker": "^9.14.0",
     "react-dom": "19.2.4",

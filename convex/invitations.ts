@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { internal } from "./_generated/api";
 
 export const listByOrg = query({
   args: { orgId: v.id("organizations") },
@@ -58,6 +59,11 @@ export const create = mutation({
       status: "pending",
       expiresAt,
       receiveMonthlyInvoices: args.receiveMonthlyInvoices,
+    });
+
+    // Send the invitation email.
+    await ctx.scheduler.runAfter(0, internal.emailActions.sendInvitationEmail, {
+      invitationId: id,
     });
 
     const actor = await ctx.db.get(invitedBy);

@@ -82,6 +82,39 @@ export const getUserById = internalQuery({
   },
 });
 
+export const getInvitationWithDetails = internalQuery({
+  args: { invitationId: v.id("invitations") },
+  handler: async (ctx, args) => {
+    const invitation = await ctx.db.get(args.invitationId);
+    if (!invitation) return null;
+    const org = await ctx.db.get(invitation.orgId);
+    const inviter = await ctx.db.get(invitation.invitedBy);
+    const inviterProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", invitation.invitedBy))
+      .unique();
+    const ownerEmail = await ownerEmailForOrg(ctx, org);
+    return {
+      ...invitation,
+      orgName: org?.name ?? "",
+      inviterName:
+        inviterProfile?.fullName ??
+        (inviter as { name?: string } | null)?.name ??
+        (inviter as { email?: string } | null)?.email ??
+        undefined,
+      ownerEmail,
+    };
+  },
+});
+
+export const getVerifiedDomainsForOrg = internalQuery({
+  args: { orgId: v.id("organizations") },
+  handler: async (ctx, args) => {
+    const domains = await ctx.db.query("domains").collect();
+    return domains.filter((d) => d.orgId === args.orgId);
+  },
+});
+
 export const getOrgOwnerEmail = internalQuery({
   args: { orgId: v.id("organizations") },
   handler: async (ctx, args) => {
