@@ -145,6 +145,22 @@ export const update = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    // Only owner or super admin can change org settings. Managers are
+    // explicitly excluded from Settings access.
+    const actorId = await getAuthUserId(ctx);
+    if (!actorId) throw new Error("Not authenticated");
+    const actorProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", actorId))
+      .unique();
+    const isSuperAdmin = actorProfile?.isSuperAdmin === true;
+    if (!isSuperAdmin) {
+      const membership = await getMembershipFor(ctx, args.id, actorId);
+      if (!membership || membership.role !== "owner") {
+        throw new Error("Only the owner can change organisation settings");
+      }
+    }
+
     const { id, ...updates } = args;
     const filteredUpdates = Object.fromEntries(
       Object.entries(updates).filter(([, value]) => value !== undefined)
