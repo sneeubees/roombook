@@ -112,7 +112,7 @@ export default function CalendarPage() {
     [memberships]
   );
 
-  const [viewMode, setViewMode] = useState<"month" | "week" | "day">("month");
+  const [viewMode, setViewMode] = useState<"month" | "week" | "day">("week");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
@@ -1142,11 +1142,11 @@ export default function CalendarPage() {
             );
           })()}
 
-          {/* WEEK VIEW */}
+          {/* WEEK VIEW — 2 cols on mobile (scrolls), 7 cols from md up */}
           {viewMode === "week" && (() => {
             const singleRoom = selectedRoom ? rooms?.find((r) => r._id === selectedRoom) : null;
             return (
-              <div className="grid grid-cols-7">
+              <div className="grid grid-cols-2 md:grid-cols-7">
                 {weekDays.map((day) => {
                   const dateStr = format(day, "yyyy-MM-dd");
                   const today = isToday(day);
