@@ -348,11 +348,13 @@ export default function SettingsPage() {
 
             <div className="flex items-center justify-between">
               <div>
-                <Label>Show another {staffLabel === "Other" ? (customStaffLabel || "booker").toLowerCase() : staffLabel.toLowerCase()}&apos;s name</Label>
+                <Label>
+                  Show {staffLabel === "Other" ? (customStaffLabel || "booker").toLowerCase() : staffLabel.toLowerCase()} names to others
+                </Label>
                 <p className="text-xs text-muted-foreground mt-1">
-                  When enabled, a {staffLabel === "Other" ? (customStaffLabel || "booker").toLowerCase() : staffLabel.toLowerCase()} can
-                  see another {staffLabel === "Other" ? (customStaffLabel || "booker").toLowerCase() : staffLabel.toLowerCase()}&apos;s
-                  name on booked slots. Owners always see names regardless.
+                  When enabled, {staffLabel === "Other" ? (customStaffLabel || "booker").toLowerCase() : staffLabel.toLowerCase()}s can
+                  see other {staffLabel === "Other" ? (customStaffLabel || "booker").toLowerCase() : staffLabel.toLowerCase()}s&apos;
+                  names on booked slots. Owners always see names.
                 </p>
               </div>
               <Switch
