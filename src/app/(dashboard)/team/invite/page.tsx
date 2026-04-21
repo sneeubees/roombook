@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "../../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useRouter } from "next/navigation";
@@ -34,6 +34,10 @@ export default function InvitePage() {
   const { orgId } = useOrgData();
   const router = useRouter();
   const createInvitation = useMutation(api.invitations.create);
+  const orgDomains = useQuery(
+    api.domains.listByOrg,
+    orgId ? { orgId } : "skip"
+  );
 
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<"booker" | "manager">("booker");
@@ -53,8 +57,13 @@ export default function InvitePage() {
         token,
       });
 
-      // In production, send email via Resend here
-      const inviteUrl = `${window.location.origin}/invite/${token}`;
+      // Prefer a verified white-label domain so the invitee lands on the
+      // org's own domain, not roombook.co.za. Falls back to the current host.
+      const verified = (orgDomains ?? []).find((d) => d.isVerified);
+      const origin = verified
+        ? `https://${verified.domain}`
+        : window.location.origin;
+      const inviteUrl = `${origin}/invite/${token}`;
       await navigator.clipboard.writeText(inviteUrl);
 
       toast.success("Invitation created! Link copied to clipboard.", {
