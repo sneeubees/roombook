@@ -828,7 +828,7 @@ export default function CalendarPage() {
             <div
               key={b._id}
               className={cn(
-                "absolute left-0 right-0 flex items-center cursor-pointer hover:opacity-90 text-white overflow-hidden z-20",
+                "absolute left-0 right-0 flex items-center justify-center cursor-pointer hover:opacity-90 text-white overflow-hidden z-20 px-2",
                 isMine ? color.bgMine : color.bg
               )}
               style={{ top, height }}
@@ -838,11 +838,8 @@ export default function CalendarPage() {
               }}
               title={`${main} (${timeLabel})`}
             >
-              <div className="w-9 shrink-0 text-[9px] pl-1 leading-none opacity-95">
-                {rowLabel}
-              </div>
-              <div className="flex-1 min-w-0 text-[10px] font-semibold leading-tight truncate text-center pr-2">
-                {main}
+              <div className="text-[10px] font-semibold leading-none truncate">
+                {rowLabel} - {main}
               </div>
             </div>
           );
