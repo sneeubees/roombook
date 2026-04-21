@@ -887,7 +887,7 @@ export default function CalendarPage() {
             <div
               key={b._id}
               className={cn(
-                "absolute left-0 right-0 flex items-center justify-center cursor-pointer hover:opacity-90 text-white overflow-hidden z-20 px-2",
+                "absolute left-0 right-0 flex items-center justify-center cursor-pointer text-white overflow-hidden z-20 px-2 opacity-85 hover:opacity-65 transition-opacity",
                 isMine ? color.bgMine : color.bg
               )}
               style={{ top, height }}
