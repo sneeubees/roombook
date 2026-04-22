@@ -3,7 +3,7 @@
 import { useAuthActions } from "@convex-dev/auth/react";
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   Card,
   CardContent,
@@ -19,6 +19,9 @@ import { toast } from "sonner";
 export default function SignUpPage() {
   const { signIn } = useAuthActions();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tierParam = searchParams.get("tier");
+  const tierQuery = tierParam ? `?tier=${tierParam}` : "";
 
   const [step, setStep] = useState<"details" | "verify">("details");
   const [fullName, setFullName] = useState("");
@@ -59,7 +62,7 @@ export default function SignUpPage() {
         code,
         flow: "email-verification",
       });
-      router.push("/onboarding");
+      router.push(`/onboarding${tierQuery}`);
     } catch (err) {
       toast.error(
         err instanceof Error

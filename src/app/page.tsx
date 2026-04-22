@@ -241,7 +241,11 @@ export default function LandingPage() {
                     ))}
                   </ul>
                   <Link
-                    href={`/subscribe?tier=${tierId}`}
+                    href={
+                      isAuthenticated
+                        ? `/subscribe?tier=${tierId}`
+                        : `/sign-up?tier=${tierId}`
+                    }
                     className={
                       buttonVariants({
                         variant: isFeatured ? "default" : "outline",

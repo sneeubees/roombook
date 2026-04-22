@@ -46,30 +46,16 @@ export default function SubscribePage() {
     }
   }, [step, reference, orgData]);
 
+  // Skip the "sign up first" middle step — push unauthenticated visitors
+  // straight to the sign-up page, preserving the tier they picked.
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      router.replace(`/sign-up?tier=${selected}`);
+    }
+  }, [isLoading, isAuthenticated, router, selected]);
+
   if (!isLoading && !isAuthenticated) {
-    return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <Card className="max-w-md w-full">
-          <CardHeader>
-            <CardTitle>Sign up first</CardTitle>
-            <CardDescription>
-              You need an account before you can subscribe to a plan.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex gap-2">
-            <Link href="/sign-up" className={buttonVariants()}>
-              Create account
-            </Link>
-            <Link
-              href="/sign-in"
-              className={buttonVariants({ variant: "outline" })}
-            >
-              Sign in
-            </Link>
-          </CardContent>
-        </Card>
-      </div>
-    );
+    return null;
   }
 
   const tier = TIERS[selected];

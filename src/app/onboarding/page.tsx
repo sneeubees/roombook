@@ -2,7 +2,7 @@
 
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { DoorOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,9 @@ export default function OnboardingPage() {
   const currentOrg = useQuery(api.organizations.currentOrg);
   const createOrg = useMutation(api.organizations.create);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const tierParam = searchParams.get("tier");
+  const nextAfterOrg = tierParam ? `/subscribe?tier=${tierParam}` : "/dashboard";
   const creating = useRef(false);
 
   const [orgName, setOrgName] = useState("");
@@ -38,11 +41,12 @@ export default function OnboardingPage() {
   }, [isAuthenticated, isLoading, router]);
 
   useEffect(() => {
-    // If user already has an org, go to dashboard
+    // If user already has an org, skip onboarding. Honour ?tier= so a
+    // returning user who clicked a pricing CTA still lands on /subscribe.
     if (currentOrg?.org) {
-      router.push("/dashboard");
+      router.push(nextAfterOrg);
     }
-  }, [currentOrg, router]);
+  }, [currentOrg, router, nextAfterOrg]);
 
   useEffect(() => {
     if (me && !orgName) {
@@ -58,7 +62,7 @@ export default function OnboardingPage() {
     try {
       const slug = slugify(orgName);
       await createOrg({ name: orgName.trim(), slug });
-      router.push("/dashboard");
+      router.push(nextAfterOrg);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to create organization"
