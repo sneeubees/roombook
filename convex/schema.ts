@@ -71,6 +71,11 @@ export default defineSchema({
     ),
     // The Convex Auth userId of the owner (one per org).
     ownerUserId: v.optional(v.id("users")),
+    // Subscription / payment workflow.
+    paymentMethod: v.optional(v.literal("eft")),
+    paymentReference: v.optional(v.string()),
+    paymentRequestedAt: v.optional(v.number()),
+    paymentNotes: v.optional(v.string()),
   }).index("by_slug", ["slug"]),
 
   // Membership — links a user to an organisation with a role.

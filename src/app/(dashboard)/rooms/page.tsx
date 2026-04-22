@@ -4,7 +4,9 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useSubscriptionTier } from "@/hooks/use-subscription-tier";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   Card,
@@ -31,6 +33,8 @@ import { Id } from "../../../../convex/_generated/dataModel";
 export default function RoomsPage() {
   const { orgId } = useOrgData();
   const { isOwner } = useUserRole();
+  const { maxRooms, config: tierConfig } = useSubscriptionTier();
+  const router = useRouter();
   const rooms = useQuery(api.rooms.list, orgId ? { orgId } : "skip");
   const updateRoom = useMutation(api.rooms.update);
   const removeRoom = useMutation(api.rooms.remove);
@@ -40,6 +44,10 @@ export default function RoomsPage() {
     name: string;
   } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  const activeCount = (rooms ?? []).filter((r) => r.isActive).length;
+  const reachedLimit = maxRooms > 0 && activeCount >= maxRooms;
 
   if (!isOwner) {
     return (
@@ -91,11 +99,26 @@ export default function RoomsPage() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Rooms</h1>
-        <Link href="/rooms/new" className={buttonVariants()}>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Room
-        </Link>
+        {reachedLimit ? (
+          <Button onClick={() => setShowUpgrade(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Room
+          </Button>
+        ) : (
+          <Link href="/rooms/new" className={buttonVariants()}>
+            <Plus className="h-4 w-4 mr-2" />
+            Add Room
+          </Link>
+        )}
       </div>
+
+      {reachedLimit && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2 text-xs">
+          You&apos;re on the <strong>{tierConfig.label}</strong> plan, which is
+          limited to {maxRooms} room{maxRooms === 1 ? "" : "s"}. Upgrade to add
+          more.
+        </div>
+      )}
 
       <p className="text-xs text-muted-foreground">
         To remove a room, please deactivate it first — an active room cannot be
@@ -247,6 +270,33 @@ export default function RoomsPage() {
               }}
             >
               {isDeleting ? "Deleting…" : "Yes, delete"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Upgrade-required modal */}
+      <Dialog open={showUpgrade} onOpenChange={setShowUpgrade}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upgrade to add more rooms</DialogTitle>
+            <DialogDescription>
+              The <strong>{tierConfig.label}</strong> plan is limited to
+              {" "}{maxRooms} room{maxRooms === 1 ? "" : "s"}. Upgrade to
+              Professional or Enterprise to add unlimited rooms.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowUpgrade(false)}>
+              Maybe later
+            </Button>
+            <Button
+              onClick={() => {
+                setShowUpgrade(false);
+                router.push("/subscribe");
+              }}
+            >
+              View plans
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -2,6 +2,25 @@ import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 
 /**
+ * One-shot: stamp all existing organisations as 'enterprise' tier so the
+ * dev test users keep full access when subscription tiers are reintroduced.
+ */
+export const backfillTiers = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const orgs = await ctx.db.query("organizations").collect();
+    let updated = 0;
+    for (const o of orgs) {
+      if (o.subscriptionTier !== "enterprise") {
+        await ctx.db.patch(o._id, { subscriptionTier: "enterprise" });
+        updated++;
+      }
+    }
+    return { updated, total: orgs.length };
+  },
+});
+
+/**
  * One-shot: mark every existing password-auth account as already verified
  * so Convex Auth's `verify` flow doesn't send those users through the OTP
  * step on sign-in. Also sets emailVerificationTime on the user row for

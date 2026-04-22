@@ -281,6 +281,40 @@ export const updateMemberRole = mutation({
   },
 });
 
+/**
+ * Owner submits an EFT subscription request. The org's chosen tier and
+ * payment reference are recorded; status drops back to pending_approval so
+ * the super admin can verify the payment and activate the org.
+ */
+export const requestSubscription = mutation({
+  args: {
+    orgId: v.id("organizations"),
+    tier: v.union(
+      v.literal("basic"),
+      v.literal("professional"),
+      v.literal("enterprise")
+    ),
+    paymentReference: v.string(),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const actorId = await getAuthUserId(ctx);
+    if (!actorId) throw new Error("Not authenticated");
+    const membership = await getMembershipFor(ctx, args.orgId, actorId);
+    if (!membership || membership.role !== "owner") {
+      throw new Error("Only the owner can change the subscription");
+    }
+    await ctx.db.patch(args.orgId, {
+      subscriptionTier: args.tier,
+      paymentMethod: "eft",
+      paymentReference: args.paymentReference,
+      paymentRequestedAt: Date.now(),
+      paymentNotes: args.notes,
+      status: "pending_approval",
+    });
+  },
+});
+
 // Toggle a member's "Email Monthly Invoices" preference. Owner (or super
 // admin) only; owner's own membership cannot be toggled off.
 export const setMembershipPreferences = mutation({

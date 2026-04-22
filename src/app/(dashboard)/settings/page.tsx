@@ -4,6 +4,8 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
+import { useSubscriptionTier } from "@/hooks/use-subscription-tier";
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import {
   Card,
@@ -12,7 +14,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
@@ -31,6 +33,9 @@ import { toast } from "sonner";
 export default function SettingsPage() {
   const { convexOrg } = useOrgData();
   const { canAccessSettings } = useUserRole();
+  const { can: tierCan, config: tierConfig } = useSubscriptionTier();
+  const canInvoice = tierCan("invoicing");
+  const canWhiteLabel = tierCan("whitelabel");
   const updateOrg = useMutation(api.organizations.update);
   const generateLogoUploadUrl = useMutation(api.organizations.generateLogoUploadUrl);
   const saveLogoAndGetUrl = useMutation(api.organizations.saveLogoAndGetUrl);
@@ -391,14 +396,24 @@ export default function SettingsPage() {
                 <CardDescription>
                   Configure when and how invoices are generated.
                 </CardDescription>
+                {!canInvoice && (
+                  <p className="mt-2 text-xs text-amber-700">
+                    Invoicing is available on the Professional plan.{" "}
+                    <Link href="/subscribe" className="underline font-medium">
+                      Upgrade
+                    </Link>
+                    .
+                  </p>
+                )}
               </div>
               <Switch
-                checked={invoicesEnabled}
+                checked={canInvoice && invoicesEnabled}
                 onCheckedChange={setInvoicesEnabled}
+                disabled={!canInvoice}
               />
             </div>
           </CardHeader>
-          {invoicesEnabled && (
+          {canInvoice && invoicesEnabled && (
             <CardContent className="space-y-4">
               <div className="space-y-3">
                 <Label>Generation Mode</Label>
@@ -580,6 +595,40 @@ export default function SettingsPage() {
 }
 
 function WhiteLabelSection({ orgId }: { orgId?: any }) {
+  // eslint-disable-next-line react-hooks/rules-of-hooks
+  const { can: tierCan, config: tierConfig } = useSubscriptionTier();
+  const allowed = tierCan("whitelabel");
+  if (!allowed) {
+    return (
+      <Card className="opacity-70">
+        <CardHeader>
+          <CardTitle>White Label</CardTitle>
+          <CardDescription>
+            Add a custom subdomain so your users see your branding instead of
+            RoomBook.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-4 py-3 text-sm flex items-start justify-between gap-3">
+            <div>
+              <p className="font-medium">Available on the Enterprise plan</p>
+              <p className="text-xs mt-0.5">
+                Your current plan ({tierConfig.label}) does not include
+                white-label domains. Upgrade to add your own.
+              </p>
+            </div>
+            <Link href="/subscribe" className={buttonVariants({ size: "sm" })}>
+              Upgrade
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+  return <WhiteLabelSectionInner orgId={orgId} />;
+}
+
+function WhiteLabelSectionInner({ orgId }: { orgId?: any }) {
   const domains = useQuery(
     api.domains.listByOrg,
     orgId ? { orgId } : "skip"

@@ -5,6 +5,8 @@ import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { buttonVariants } from "@/components/ui/button";
 import { useCustomDomain } from "@/hooks/use-custom-domain";
+import { TIERS, formatZAR } from "@/lib/tiers";
+import { Check, X } from "lucide-react";
 import {
   CalendarDays,
   DoorOpen,
@@ -183,6 +185,74 @@ export default function LandingPage() {
                 <p className="text-muted-foreground">{feature.description}</p>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section id="pricing" className="border-t py-20">
+        <div className="container mx-auto px-6">
+          <h2 className="text-3xl font-bold text-center mb-2">
+            Simple, predictable pricing
+          </h2>
+          <p className="text-center text-muted-foreground mb-12">
+            Pay monthly via EFT. Cancel any time.
+          </p>
+          <div className="grid gap-6 md:grid-cols-3 max-w-5xl mx-auto">
+            {(["basic", "professional", "enterprise"] as const).map((tierId) => {
+              const t = TIERS[tierId];
+              const isFeatured = tierId === "professional";
+              return (
+                <div
+                  key={tierId}
+                  className={
+                    "rounded-lg border p-6 flex flex-col " +
+                    (isFeatured ? "border-primary shadow-md" : "")
+                  }
+                >
+                  {isFeatured && (
+                    <div className="text-xs font-semibold text-primary uppercase tracking-wide mb-2">
+                      Most popular
+                    </div>
+                  )}
+                  <h3 className="text-xl font-bold">{t.label}</h3>
+                  <p className="text-sm text-muted-foreground">{t.tagline}</p>
+                  <div className="mt-4">
+                    <span className="text-3xl font-bold">
+                      {formatZAR(t.monthlyPriceZAR)}
+                    </span>
+                    <span className="text-muted-foreground"> / month</span>
+                  </div>
+                  <ul className="space-y-2 my-6 text-sm">
+                    {t.highlights.map((h) => (
+                      <li key={h} className="flex items-start gap-2">
+                        <Check className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                        <span>{h}</span>
+                      </li>
+                    ))}
+                    {t.notIncluded.map((h) => (
+                      <li
+                        key={h}
+                        className="flex items-start gap-2 text-muted-foreground"
+                      >
+                        <X className="h-4 w-4 mt-0.5 shrink-0" />
+                        <span>{h}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href={`/subscribe?tier=${tierId}`}
+                    className={
+                      buttonVariants({
+                        variant: isFeatured ? "default" : "outline",
+                      }) + " mt-auto"
+                    }
+                  >
+                    Choose {t.label}
+                  </Link>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>

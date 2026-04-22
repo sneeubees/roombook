@@ -85,6 +85,8 @@ export default function AdminPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Organization</TableHead>
+                  <TableHead>Tier</TableHead>
+                  <TableHead>Payment</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
@@ -92,39 +94,71 @@ export default function AdminPage() {
               <TableBody>
                 {organizations
                   ?.filter((o) => (o.status ?? "active") === "pending_approval")
-                  .map((org) => (
-                    <TableRow key={org._id}>
-                      <TableCell className="font-medium">{org.name}</TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {format(new Date(org._creationTime), "d MMM yyyy HH:mm")}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-2 justify-end">
-                          <Button
-                            size="sm"
-                            onClick={async () => {
-                              await approveOrg({ id: org._id });
-                              toast.success(`${org.name} approved`);
-                            }}
-                          >
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={async () => {
-                              await suspendOrg({ id: org._id });
-                              toast.success(`${org.name} suspended`);
-                            }}
-                          >
-                            <XCircle className="h-3 w-3 mr-1" />
-                            Reject
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
+                  .map((org) => {
+                    const o = org as typeof org & {
+                      paymentMethod?: string;
+                      paymentReference?: string;
+                      paymentNotes?: string;
+                      paymentRequestedAt?: number;
+                    };
+                    return (
+                      <TableRow key={org._id}>
+                        <TableCell className="font-medium">{org.name}</TableCell>
+                        <TableCell>
+                          <Badge variant="outline">
+                            {org.subscriptionTier ?? "—"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="text-xs">
+                          {o.paymentMethod ? (
+                            <>
+                              <div className="font-medium uppercase">
+                                {o.paymentMethod}
+                              </div>
+                              <div className="font-mono text-muted-foreground">
+                                Ref: {o.paymentReference ?? "—"}
+                              </div>
+                              {o.paymentNotes && (
+                                <div className="text-muted-foreground italic">
+                                  {o.paymentNotes}
+                                </div>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {format(new Date(org._creationTime), "d MMM yyyy HH:mm")}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2 justify-end">
+                            <Button
+                              size="sm"
+                              onClick={async () => {
+                                await approveOrg({ id: org._id });
+                                toast.success(`${org.name} approved`);
+                              }}
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="destructive"
+                              onClick={async () => {
+                                await suspendOrg({ id: org._id });
+                                toast.success(`${org.name} suspended`);
+                              }}
+                            >
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
               </TableBody>
             </Table>
           </CardContent>

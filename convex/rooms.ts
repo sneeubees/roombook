@@ -83,6 +83,21 @@ export const create = mutation({
       .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
       .collect();
 
+    // Subscription-tier room limit. Starter = 1 active room, Professional /
+    // Enterprise = unlimited.
+    const org = await ctx.db.get(args.orgId);
+    const tier = (org as { subscriptionTier?: string } | null)?.subscriptionTier ?? "basic";
+    const tierLimit =
+      tier === "basic" ? 1 : 0; // 0 = unlimited
+    const activeCount = rooms.filter(
+      (r) => r.isActive && !(r as { deletedAt?: number }).deletedAt
+    ).length;
+    if (tierLimit > 0 && activeCount >= tierLimit) {
+      throw new Error(
+        `Your current plan is limited to ${tierLimit} room${tierLimit === 1 ? "" : "s"}. Upgrade to add more.`
+      );
+    }
+
     return await ctx.db.insert("rooms", {
       ...args,
       isActive: true,
