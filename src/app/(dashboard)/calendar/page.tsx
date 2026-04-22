@@ -1113,7 +1113,7 @@ export default function CalendarPage() {
                           singleRoom ? "min-h-[160px]" : "min-h-[100px]",
                           singleRoom && getColorForRoom(singleRoom._id).borderSoft,
                           !inMonth && "bg-muted/30",
-                          isPast && "opacity-50",
+                          isPast && "opacity-70",
                           today && (singleRoom ? getColorForRoom(singleRoom._id).bgTint : "bg-primary/10")
                         )}
                       >
@@ -1125,7 +1125,7 @@ export default function CalendarPage() {
                         >
                           {format(day, "d")}
                         </div>
-                        {inMonth && !isPast && (
+                        {inMonth && (
                           singleRoom
                             ? renderSingleRoomCell(singleRoom, dateStr, 13)
                             : filteredRooms.map((room) =>
@@ -1158,7 +1158,7 @@ export default function CalendarPage() {
                         "border-b border-r p-2",
                         singleRoom ? "min-h-[220px]" : "min-h-[140px]",
                         singleRoom && getColorForRoom(singleRoom._id).borderSoft,
-                        isPast && "opacity-50",
+                        isPast && "opacity-70",
                         today && (singleRoom ? getColorForRoom(singleRoom._id).bgTint : "bg-primary/5")
                       )}
                     >
@@ -1172,15 +1172,13 @@ export default function CalendarPage() {
                           {format(day, "EEE d MMM")}
                         </div>
                       </div>
-                      {!isPast && (
-                        singleRoom
-                          ? renderSingleRoomCell(singleRoom, dateStr, 18)
-                          : filteredRooms.map((room) =>
-                              (room.pricingMode ?? "day_based") === "hourly"
-                                ? renderHourlyRoomDay(room, dateStr)
-                                : renderDayBasedRoomDay(room, dateStr)
-                            )
-                      )}
+                      {singleRoom
+                        ? renderSingleRoomCell(singleRoom, dateStr, 18)
+                        : filteredRooms.map((room) =>
+                            (room.pricingMode ?? "day_based") === "hourly"
+                              ? renderHourlyRoomDay(room, dateStr)
+                              : renderDayBasedRoomDay(room, dateStr)
+                          )}
                     </div>
                   );
                 })}
@@ -1195,7 +1193,7 @@ export default function CalendarPage() {
             const isPast = isBefore(dayViewDate, new Date()) && !today;
             const singleRoom = selectedRoom ? rooms?.find((r) => r._id === selectedRoom) : null;
             return (
-              <div className={cn("p-4", isPast && "opacity-50")}>
+              <div className={cn("p-4", isPast && "opacity-70")}>
                 <div className="flex items-center gap-2 mb-4">
                   <div
                     className={cn(
@@ -1216,7 +1214,7 @@ export default function CalendarPage() {
                           : `Full Day R${((singleRoom.fullDayRate ?? 0) / 100).toFixed(2)} · Half Day R${((singleRoom.halfDayRate ?? 0) / 100).toFixed(2)}`}
                       </span>
                     </div>
-                    {!isPast && renderSingleRoomCell(singleRoom, dateStr, 26)}
+                    {renderSingleRoomCell(singleRoom, dateStr, 26)}
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1230,10 +1228,9 @@ export default function CalendarPage() {
                               : `Full Day R${((room.fullDayRate ?? 0) / 100).toFixed(2)} · Half Day R${((room.halfDayRate ?? 0) / 100).toFixed(2)}`}
                           </span>
                         </div>
-                        {!isPast &&
-                          ((room.pricingMode ?? "day_based") === "hourly"
-                            ? renderHourlyRoomDay(room, dateStr)
-                            : renderDayBasedRoomDay(room, dateStr))}
+                        {(room.pricingMode ?? "day_based") === "hourly"
+                          ? renderHourlyRoomDay(room, dateStr)
+                          : renderDayBasedRoomDay(room, dateStr)}
                       </div>
                     ))}
                   </div>
@@ -1464,6 +1461,10 @@ export default function CalendarPage() {
             if (!booking) return null;
             const room = rooms?.find((r) => r._id === booking.roomId);
             const isSession = booking.slotType === "session" && booking.startTime && booking.endTime;
+            // Past bookings: only description / notes editable. Time edits and
+            // cancellation are blocked because the booking has already happened.
+            const bookingDate = new Date(booking.date + "T23:59:59");
+            const isPastBooking = bookingDate < new Date();
             return (
               <div className="space-y-4">
                 <div className="text-sm text-muted-foreground">
@@ -1476,6 +1477,14 @@ export default function CalendarPage() {
                       : booking.slotType.toUpperCase()}
                   {" — R"}{(booking.rateApplied / 100).toFixed(2)}
                 </div>
+
+                {isPastBooking && (
+                  <div className="rounded-md bg-muted/50 border px-3 py-2 text-xs text-muted-foreground">
+                    This booking has already taken place. You can update the
+                    description and notes, but the time can&apos;t be changed
+                    and it can&apos;t be cancelled.
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Patient / Meeting Name</Label>
@@ -1494,6 +1503,7 @@ export default function CalendarPage() {
                         type="time"
                         value={updateStartTime}
                         onChange={(e) => setUpdateStartTime(e.target.value)}
+                        disabled={isPastBooking}
                       />
                     </div>
                     <div className="space-y-2">
@@ -1502,6 +1512,7 @@ export default function CalendarPage() {
                         type="time"
                         value={updateEndTime}
                         onChange={(e) => setUpdateEndTime(e.target.value)}
+                        disabled={isPastBooking}
                       />
                     </div>
                   </div>
@@ -1526,8 +1537,8 @@ export default function CalendarPage() {
                           id: selectedBookingId,
                           description: editDescription || undefined,
                           notes: editNotes || undefined,
-                          startTime: isSession ? updateStartTime : undefined,
-                          endTime: isSession ? updateEndTime : undefined,
+                          startTime: isSession && !isPastBooking ? updateStartTime : undefined,
+                          endTime: isSession && !isPastBooking ? updateEndTime : undefined,
                         });
                         toast.success("Booking updated");
                         setShowDetailDialog(false);
@@ -1542,21 +1553,23 @@ export default function CalendarPage() {
                   >
                     {isSubmitting ? "Saving..." : "Save Changes"}
                   </Button>
-                  <div className="space-y-2 w-full">
-                    <Textarea
-                      value={cancelReason}
-                      onChange={(e) => setCancelReason(e.target.value)}
-                      placeholder="Reason for cancellation (optional)"
-                    />
-                    <Button
-                      variant="destructive"
-                      onClick={handleCancelBooking}
-                      disabled={isSubmitting}
-                      className="w-full"
-                    >
-                      {isSubmitting ? "Cancelling..." : "Cancel Booking"}
-                    </Button>
-                  </div>
+                  {!isPastBooking && (
+                    <div className="space-y-2 w-full">
+                      <Textarea
+                        value={cancelReason}
+                        onChange={(e) => setCancelReason(e.target.value)}
+                        placeholder="Reason for cancellation (optional)"
+                      />
+                      <Button
+                        variant="destructive"
+                        onClick={handleCancelBooking}
+                        disabled={isSubmitting}
+                        className="w-full"
+                      >
+                        {isSubmitting ? "Cancelling..." : "Cancel Booking"}
+                      </Button>
+                    </div>
+                  )}
                 </DialogFooter>
               </div>
             );
