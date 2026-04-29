@@ -122,7 +122,10 @@ export default function CalendarPage() {
   const [bookingEndTime, setBookingEndTime] = useState("10:00");
   const [bookingDescription, setBookingDescription] = useState("");
   const [bookingNotes, setBookingNotes] = useState("");
-  const [bookForUserId, setBookForUserId] = useState<Id<"users"> | null>(null); // null = self
+  // null = not selected. Owners/managers must consciously pick a booker
+  // (including themselves) — we never auto-select the first member because
+  // bookings under the wrong name slip through too easily.
+  const [bookForUserId, setBookForUserId] = useState<Id<"users"> | null>(null);
   const [showBookingDialog, setShowBookingDialog] = useState(false);
   const [showDetailDialog, setShowDetailDialog] = useState(false);
   const [showBookedSlotDialog, setShowBookedSlotDialog] = useState(false);
@@ -311,12 +314,22 @@ export default function CalendarPage() {
 
   async function handleBookRoom() {
     if (!orgId || !me?._id || !selectedRoom || !selectedDate) return;
+
+    // Owners/managers must explicitly pick a booker — guard here in case the
+    // disabled-button check is ever bypassed.
+    if (canManage && memberships && memberships.length > 0 && !bookForUserId) {
+      toast.error("Please select who this booking is for");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const roomObj = rooms?.find((r) => r._id === selectedRoom);
       const isHourly = (roomObj?.pricingMode ?? "day_based") === "hourly";
 
-      // Determine who the booking is for
+      // Determine who the booking is for. Pass forUserId only when booking
+      // on behalf of someone else; the manager booking for themselves goes
+      // through as a self-booking (no forUserId).
       const forUserId =
         canManage && bookForUserId && bookForUserId !== me._id
           ? bookForUserId
@@ -454,6 +467,8 @@ export default function CalendarPage() {
     } else {
       setBookingSlot("full_day");
     }
+    // Always force a conscious booker pick on each open.
+    setBookForUserId(null);
     setShowBookingDialog(true);
   }
 
@@ -756,6 +771,7 @@ export default function CalendarPage() {
                 setSelectedDate(dateStr);
                 setSelectedRoom(room._id);
                 setBookingSlot(slot);
+                setBookForUserId(null);
                 setShowBookingDialog(true);
               }}
             >
@@ -1262,18 +1278,21 @@ export default function CalendarPage() {
             {/* Owner / Manager / Super Admin: Book on behalf of a member */}
             {canManage && memberships && memberships.length > 0 && (
               <div className="space-y-2">
-                <Label>Book For</Label>
+                <Label>
+                  Book For <span className="text-destructive">*</span>
+                </Label>
                 <Select
-                  value={bookForUserId ?? me?._id ?? ""}
+                  value={bookForUserId ?? ""}
                   onValueChange={(v) => {
                     if (!v) return;
-                    setBookForUserId(v === me?._id ? null : (v as Id<"users">));
+                    setBookForUserId(v as Id<"users">);
                   }}
                 >
                   <SelectTrigger>
-                    <SelectValue>
-                      {resolveUserName(bookForUserId ?? me?._id) || "Member"}
-                      {(!bookForUserId || bookForUserId === me?._id) ? " (Myself)" : ""}
+                    <SelectValue placeholder="Select booker...">
+                      {bookForUserId
+                        ? `${resolveUserName(bookForUserId) || "Member"}${bookForUserId === me?._id ? " (Myself)" : ""}`
+                        : null}
                     </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
@@ -1287,6 +1306,11 @@ export default function CalendarPage() {
                     })}
                   </SelectContent>
                 </Select>
+                {!bookForUserId && (
+                  <p className="text-xs text-muted-foreground">
+                    Pick the person this booking is for — choose &ldquo;Myself&rdquo; if it&apos;s yours.
+                  </p>
+                )}
               </div>
             )}
 
@@ -1442,7 +1466,14 @@ export default function CalendarPage() {
             </Button>
             <Button
               onClick={handleBookRoom}
-              disabled={isSubmitting || (isHourlyRoom && bookingStartTime >= bookingEndTime)}
+              disabled={
+                isSubmitting ||
+                (isHourlyRoom && bookingStartTime >= bookingEndTime) ||
+                (canManage &&
+                  !!memberships &&
+                  memberships.length > 0 &&
+                  !bookForUserId)
+              }
             >
               {isSubmitting ? "Booking..." : "Confirm Booking"}
             </Button>
