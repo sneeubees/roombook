@@ -286,25 +286,8 @@ export function InvoiceDocument({ data }: { data: InvoiceData }) {
               </Text>
               {data.dueDate && <Text>Due: {data.dueDate}</Text>}
             </View>
-            {/* Hide the badge for "draft" — drafts are an internal state
-                and clutter the invoice. Other statuses still show. */}
-            {data.status !== "draft" && (
-              <Text
-                style={[
-                  styles.statusBadge,
-                  {
-                    color:
-                      data.status === "paid"
-                        ? "#16a34a"
-                        : data.status === "overdue"
-                          ? "#dc2626"
-                          : "#6b7280",
-                  },
-                ]}
-              >
-                {data.status.toUpperCase()}
-              </Text>
-            )}
+            {/* Status badge intentionally omitted — issued invoices are
+                always live. Cancelled invoices aren't sent. */}
           </View>
         </View>
 

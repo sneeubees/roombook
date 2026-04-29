@@ -31,7 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileDown, FilePlus, Mail, Trash2 } from "lucide-react";
+import { FileDown, FilePlus, Mail, Trash2, XCircle } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -43,15 +43,6 @@ import { toast } from "sonner";
 import { useState } from "react";
 import { format } from "date-fns";
 import Link from "next/link";
-
-const statusColors: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  draft: "secondary",
-  sent: "default",
-  paid: "outline",
-  overdue: "destructive",
-  void: "secondary",
-  cancelled: "destructive",
-};
 
 export default function InvoicesPage() {
   const me = useQuery(api.users.currentUser);
@@ -68,11 +59,17 @@ export default function InvoicesPage() {
   const regenerateForPeriod = useAction(api.invoices.regenerateForPeriod);
   const emailInvoices = useAction(api.invoices.emailInvoices);
   const deleteCancelledInvoice = useMutation(api.invoices.deleteCancelled);
+  const cancelInvoice = useMutation(api.invoices.cancel);
   const [deleteConfirm, setDeleteConfirm] = useState<{
     id: Id<"invoices">;
     invoiceNumber: string;
   } | null>(null);
+  const [cancelConfirm, setCancelConfirm] = useState<{
+    id: Id<"invoices">;
+    invoiceNumber: string;
+  } | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailTargetUserId, setEmailTargetUserId] = useState<string>("all");
   const [isEmailing, setIsEmailing] = useState(false);
@@ -169,7 +166,6 @@ export default function InvoicesPage() {
                   <TableHead>Subtotal</TableHead>
                   <TableHead>VAT</TableHead>
                   <TableHead>Total</TableHead>
-                  <TableHead>Status</TableHead>
                   <TableHead></TableHead>
                 </TableRow>
               </TableHeader>
@@ -180,15 +176,31 @@ export default function InvoicesPage() {
                       new Date(b.periodStart).getTime() -
                       new Date(a.periodStart).getTime()
                   )
-                  .map((invoice) => (
-                    <TableRow key={invoice._id}>
+                  .map((invoice) => {
+                    const isCancelled = invoice.status === "cancelled";
+                    return (
+                    <TableRow
+                      key={invoice._id}
+                      className={isCancelled ? "opacity-60" : undefined}
+                    >
                       <TableCell className="font-mono text-sm">
                         <Link
                           href={`/invoices/${invoice._id}`}
-                          className="hover:underline"
+                          className={
+                            "hover:underline " +
+                            (isCancelled ? "line-through" : "")
+                          }
                         >
                           {invoice.invoiceNumber}
                         </Link>
+                        {isCancelled && (
+                          <Badge
+                            variant="destructive"
+                            className="ml-2 text-[10px] py-0 px-1.5"
+                          >
+                            Cancelled
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         {format(new Date(invoice.periodStart), "d MMM")} -{" "}
@@ -208,11 +220,6 @@ export default function InvoicesPage() {
                         R{(invoice.total / 100).toFixed(2)}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={statusColors[invoice.status]}>
-                          {invoice.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>
                         <div className="flex items-center gap-1 justify-end">
                           <Button
                             variant="ghost"
@@ -227,7 +234,23 @@ export default function InvoicesPage() {
                           >
                             <FileDown className="h-4 w-4" />
                           </Button>
-                          {isOwner && invoice.status === "cancelled" && (
+                          {isOwner && !isCancelled && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Cancel invoice"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() =>
+                                setCancelConfirm({
+                                  id: invoice._id,
+                                  invoiceNumber: invoice.invoiceNumber,
+                                })
+                              }
+                            >
+                              <XCircle className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {isOwner && isCancelled && (
                             <Button
                               variant="ghost"
                               size="icon"
@@ -246,7 +269,8 @@ export default function InvoicesPage() {
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
               </TableBody>
             </Table>
           ) : (
@@ -485,6 +509,58 @@ export default function InvoicesPage() {
               }}
             >
               {isGenerating ? "Regenerating..." : "Yes, regenerate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cancel invoice confirm */}
+      <Dialog
+        open={cancelConfirm !== null}
+        onOpenChange={(open) => !open && setCancelConfirm(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Cancel this invoice?</DialogTitle>
+            <DialogDescription>
+              Invoice{" "}
+              <strong className="font-mono">
+                {cancelConfirm?.invoiceNumber}
+              </strong>{" "}
+              will be marked as cancelled — it&apos;ll be excluded from the
+              email run and from reports, but stay on file. You can permanently
+              delete it afterwards if you no longer need the record.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setCancelConfirm(null)}
+              disabled={isCancelling}
+            >
+              Keep invoice
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isCancelling}
+              onClick={async () => {
+                if (!cancelConfirm) return;
+                setIsCancelling(true);
+                try {
+                  await cancelInvoice({ id: cancelConfirm.id });
+                  toast.success(`Cancelled ${cancelConfirm.invoiceNumber}`);
+                  setCancelConfirm(null);
+                } catch (err) {
+                  const msg = err instanceof Error ? err.message : "";
+                  toast.error("Could not cancel invoice", {
+                    description: cleanErrorMessage(msg) || "Unknown error",
+                  });
+                } finally {
+                  setIsCancelling(false);
+                }
+              }}
+            >
+              {isCancelling ? "Cancelling..." : "Yes, cancel invoice"}
             </Button>
           </DialogFooter>
         </DialogContent>

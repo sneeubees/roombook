@@ -35,11 +35,14 @@ export default function InvoiceDetailPage() {
   const lineItems = useQuery(api.invoices.getLineItems, {
     invoiceId,
   });
-  const updateStatus = useMutation(api.invoices.updateStatus);
+  const cancelInvoice = useMutation(api.invoices.cancel);
+  const deleteCancelledInvoice = useMutation(api.invoices.deleteCancelled);
 
   if (!invoice) {
     return <div className="text-muted-foreground">Loading invoice...</div>;
   }
+
+  const isCancelled = invoice.status === "cancelled";
 
   return (
     <div className="max-w-3xl space-y-6">
@@ -53,18 +56,11 @@ export default function InvoiceDetailPage() {
             {format(new Date(invoice.periodEnd), "d MMM yyyy")}
           </p>
         </div>
-        <Badge
-          variant={
-            invoice.status === "paid"
-              ? "outline"
-              : invoice.status === "overdue"
-                ? "destructive"
-                : "default"
-          }
-          className="text-sm"
-        >
-          {invoice.status}
-        </Badge>
+        {isCancelled && (
+          <Badge variant="destructive" className="text-sm">
+            Cancelled
+          </Badge>
+        )}
       </div>
 
       <Card>
@@ -149,26 +145,53 @@ export default function InvoiceDetailPage() {
           Download PDF
         </Button>
 
-        {isOwner && invoice.status !== "paid" && invoice.status !== "void" && (
-          <>
-            <Button
-              onClick={async () => {
-                await updateStatus({ id: invoiceId, status: "paid" });
-                toast.success("Invoice marked as paid");
-              }}
-            >
-              Mark as Paid
-            </Button>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                await updateStatus({ id: invoiceId, status: "void" });
-                toast.success("Invoice voided");
-              }}
-            >
-              Void Invoice
-            </Button>
-          </>
+        {isOwner && !isCancelled && (
+          <Button
+            variant="destructive"
+            onClick={async () => {
+              if (
+                !window.confirm(
+                  `Cancel invoice ${invoice.invoiceNumber}? It will be removed from the active list and from reports, but kept on record. You can permanently delete it afterwards.`
+                )
+              )
+                return;
+              try {
+                await cancelInvoice({ id: invoiceId });
+                toast.success("Invoice cancelled");
+              } catch (err) {
+                toast.error(
+                  err instanceof Error ? err.message : "Could not cancel"
+                );
+              }
+            }}
+          >
+            Cancel Invoice
+          </Button>
+        )}
+
+        {isOwner && isCancelled && (
+          <Button
+            variant="destructive"
+            onClick={async () => {
+              if (
+                !window.confirm(
+                  `Permanently delete invoice ${invoice.invoiceNumber}? This cannot be undone.`
+                )
+              )
+                return;
+              try {
+                await deleteCancelledInvoice({ id: invoiceId });
+                toast.success(`Deleted invoice ${invoice.invoiceNumber}`);
+                window.location.href = "/invoices";
+              } catch (err) {
+                toast.error(
+                  err instanceof Error ? err.message : "Could not delete"
+                );
+              }
+            }}
+          >
+            Delete Permanently
+          </Button>
         )}
       </div>
     </div>

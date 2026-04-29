@@ -168,6 +168,51 @@ export const cancelForPeriod = mutation({
   },
 });
 
+// Cancel a single invoice. Only owner of the org or super-admin can run
+// this. The invoice is moved to "cancelled" so it falls out of reporting
+// and the Email Invoices flow but stays on record for audit. Cancelled
+// invoices can subsequently be hard-deleted via deleteCancelled.
+export const cancel = mutation({
+  args: {
+    id: v.id("invoices"),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const actorId = await getAuthUserId(ctx);
+    if (!actorId) throw new Error("Not authenticated");
+
+    const invoice = await ctx.db.get(args.id);
+    if (!invoice) throw new Error("Invoice not found");
+    if (invoice.status === "cancelled") {
+      throw new Error("Invoice is already cancelled");
+    }
+
+    const actorProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", actorId))
+      .unique();
+    const isSuperAdmin = actorProfile?.isSuperAdmin === true;
+
+    if (!isSuperAdmin) {
+      const membership = await ctx.db
+        .query("memberships")
+        .withIndex("by_org_user", (q) =>
+          q.eq("orgId", invoice.orgId).eq("userId", actorId)
+        )
+        .unique();
+      if (!membership || membership.role !== "owner") {
+        throw new Error("Only the owner can cancel an invoice");
+      }
+    }
+
+    await ctx.db.patch(args.id, {
+      status: "cancelled",
+      cancelledAt: Date.now(),
+      cancelledReason: args.reason ?? "Cancelled by owner",
+    });
+  },
+});
+
 // Permanently delete a cancelled invoice (and its line items). This is a
 // hard delete — only allowed once the invoice is in a "cancelled" state so
 // active / paid invoices can never be quietly dropped from the audit trail.
