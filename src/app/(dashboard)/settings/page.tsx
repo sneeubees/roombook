@@ -41,6 +41,7 @@ export default function SettingsPage() {
   const saveLogoAndGetUrl = useMutation(api.organizations.saveLogoAndGetUrl);
 
   const [companyName, setCompanyName] = useState("");
+  const [companyAddress, setCompanyAddress] = useState("");
   const [companyLogoUrl, setCompanyLogoUrl] = useState("");
   const [invoicesEnabled, setInvoicesEnabled] = useState(true);
   const [invoiceMode, setInvoiceMode] = useState<"auto" | "manual">("auto");
@@ -64,6 +65,7 @@ export default function SettingsPage() {
   useEffect(() => {
     if (convexOrg) {
       setCompanyName(convexOrg.name ?? "");
+      setCompanyAddress(convexOrg.address ?? "");
       setCompanyLogoUrl(convexOrg.logoUrl ?? "");
       setCalendarTheme((convexOrg.calendarTheme as CalendarThemeId) ?? "ocean");
       setDarkMode(convexOrg.darkMode ?? false);
@@ -124,6 +126,7 @@ export default function SettingsPage() {
       await updateOrg({
         id: convexOrg!._id,
         name: companyName.trim() || undefined,
+        address: companyAddress.trim() || undefined,
         logoUrl: companyLogoUrl.trim() || undefined,
         calendarTheme,
         darkMode,
@@ -180,6 +183,18 @@ export default function SettingsPage() {
                 onChange={(e) => setCompanyName(e.target.value)}
                 placeholder="e.g., PhysioCare Practice"
               />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="companyAddress">Address</Label>
+              <Input
+                id="companyAddress"
+                value={companyAddress}
+                onChange={(e) => setCompanyAddress(e.target.value)}
+                placeholder="e.g., 12 Main Street, Cape Town, 8001"
+              />
+              <p className="text-xs text-muted-foreground">
+                Shown on invoices alongside your company name and logo.
+              </p>
             </div>
             <div className="space-y-2">
               <Label>Logo</Label>

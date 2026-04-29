@@ -4,6 +4,7 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
   Font,
 } from "@react-pdf/renderer";
@@ -27,6 +28,17 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     marginBottom: 30,
+  },
+  orgIdentity: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 12,
+    maxWidth: 320,
+  },
+  orgLogo: {
+    width: 56,
+    height: 56,
+    objectFit: "contain",
   },
   orgName: {
     fontSize: 18,
@@ -195,6 +207,7 @@ function formatSlot(
 
 export interface InvoiceData {
   orgName: string;
+  orgLogoUrl?: string;
   orgAddress?: string;
   orgPhone?: string;
   orgEmail?: string;
@@ -239,15 +252,21 @@ export function InvoiceDocument({ data }: { data: InvoiceData }) {
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.orgName}>{data.orgName}</Text>
-            <View style={styles.orgDetails}>
-              {data.orgAddress && <Text>{data.orgAddress}</Text>}
-              {data.orgPhone && <Text>Tel: {data.orgPhone}</Text>}
-              {data.orgEmail && <Text>{data.orgEmail}</Text>}
-              {data.vatEnabled !== false && data.orgVatNumber && (
-                <Text>VAT No: {data.orgVatNumber}</Text>
-              )}
+          <View style={styles.orgIdentity}>
+            {data.orgLogoUrl && (
+              // eslint-disable-next-line jsx-a11y/alt-text
+              <Image src={data.orgLogoUrl} style={styles.orgLogo} />
+            )}
+            <View>
+              <Text style={styles.orgName}>{data.orgName}</Text>
+              <View style={styles.orgDetails}>
+                {data.orgAddress && <Text>{data.orgAddress}</Text>}
+                {data.orgPhone && <Text>Tel: {data.orgPhone}</Text>}
+                {data.orgEmail && <Text>{data.orgEmail}</Text>}
+                {data.vatEnabled !== false && data.orgVatNumber && (
+                  <Text>VAT No: {data.orgVatNumber}</Text>
+                )}
+              </View>
             </View>
           </View>
           <View>

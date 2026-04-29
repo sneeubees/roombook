@@ -116,6 +116,9 @@ export const sendInvoiceEmail = internalAction({
             period: `${invoice.periodStart} - ${invoice.periodEnd}`,
             total: `R ${(invoice.total / 100).toFixed(2)}`,
             orgName: invoice.orgName,
+            // The Next.js email-send route uses this to render and attach
+            // the PDF. The downloadUrl is kept as a graceful fallback.
+            invoiceId: args.invoiceId,
             downloadUrl: `${APP_URL}/api/invoices/${args.invoiceId}/pdf`,
           },
         }),

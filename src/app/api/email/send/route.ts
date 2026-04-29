@@ -5,6 +5,14 @@ import { invoiceReadyHtml } from "@/lib/email/templates/invoice-ready";
 import { waitlistAvailableHtml } from "@/lib/email/templates/waitlist-available";
 import { invitationEmailHtml } from "@/lib/email/templates/invitation-email";
 import { emailVerificationHtml } from "@/lib/email/templates/email-verification";
+import { buildInvoicePdf } from "@/lib/pdf/build-invoice-pdf";
+import type { Id } from "../../../../../convex/_generated/dataModel";
+
+type Attachment = {
+  filename: string;
+  content: Buffer;
+  contentType: string;
+};
 
 export async function POST(request: Request) {
   try {
@@ -14,6 +22,7 @@ export async function POST(request: Request) {
     let subject: string;
     let html: string;
     let to: string = data.email;
+    let attachments: Attachment[] | undefined;
 
     switch (type) {
       case "booking_confirmation":
@@ -43,17 +52,45 @@ export async function POST(request: Request) {
         });
         break;
 
-      case "invoice_ready":
+      case "invoice_ready": {
         subject = `Invoice ${data.invoiceNumber} - ${data.orgName}`;
+
+        // Generate the PDF and attach it. Fall back to the download link in
+        // the email if rendering fails so the recipient still has a way to
+        // get the invoice.
+        let hasAttachment = false;
+        if (data.invoiceId) {
+          try {
+            const pdf = await buildInvoicePdf(data.invoiceId as Id<"invoices">);
+            if (pdf) {
+              attachments = [
+                {
+                  filename: `${pdf.invoiceNumber}.pdf`,
+                  content: pdf.buffer,
+                  contentType: "application/pdf",
+                },
+              ];
+              hasAttachment = true;
+            }
+          } catch (err) {
+            console.error(
+              "[INVOICE EMAIL] PDF render failed, falling back to link",
+              err
+            );
+          }
+        }
+
         html = invoiceReadyHtml({
           userName: data.userName,
           invoiceNumber: data.invoiceNumber,
           period: data.period,
           total: data.total,
           orgName: data.orgName,
-          downloadUrl: data.downloadUrl,
+          downloadUrl: hasAttachment ? undefined : data.downloadUrl,
+          hasAttachment,
         });
         break;
+      }
 
       case "waitlist_available":
         subject = `Room Available - ${data.roomName} on ${data.date}`;
@@ -94,7 +131,13 @@ export async function POST(request: Request) {
     }
 
     const replyTo: string | undefined = data.replyTo;
-    const success = await sendEmail({ to, subject, html, replyTo });
+    const success = await sendEmail({
+      to,
+      subject,
+      html,
+      replyTo,
+      attachments,
+    });
 
     return new Response(JSON.stringify({ success }), {
       status: success ? 200 : 500,

@@ -183,7 +183,7 @@ export async function GET(request: Request) {
       period: `${sampleInvoice.periodStart} - ${sampleInvoice.periodEnd}`,
       total: "R 1 150.00",
       orgName: sampleInvoice.orgName,
-      downloadUrl: "https://roombook.co.za/api/invoices/test/pdf",
+      hasAttachment: true,
     }),
     attachments: [
       {

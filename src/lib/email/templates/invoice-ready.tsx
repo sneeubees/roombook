@@ -4,10 +4,27 @@ interface InvoiceReadyProps {
   period: string;
   total: string;
   orgName: string;
-  downloadUrl: string;
+  /**
+   * Kept as an optional fallback link in case PDF generation failed and we
+   * fell back to a download URL. Normal flow attaches the PDF directly.
+   */
+  downloadUrl?: string;
+  hasAttachment?: boolean;
 }
 
 export function invoiceReadyHtml(props: InvoiceReadyProps): string {
+  const ctaBlock = props.hasAttachment
+    ? `<div style="background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 6px; padding: 12px; margin-bottom: 24px; text-align: center; font-size: 13px; color: #065f46;">
+        Your invoice PDF is attached to this email.
+      </div>`
+    : props.downloadUrl
+      ? `<div style="text-align: center; margin-bottom: 24px;">
+          <a href="${props.downloadUrl}" style="display: inline-block; background: #111; color: #fff; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 600;">
+            Download Invoice PDF
+          </a>
+        </div>`
+      : "";
+
   return `
 <!DOCTYPE html>
 <html>
@@ -34,11 +51,7 @@ export function invoiceReadyHtml(props: InvoiceReadyProps): string {
       </table>
     </div>
 
-    <div style="text-align: center; margin-bottom: 24px;">
-      <a href="${props.downloadUrl}" style="display: inline-block; background: #111; color: #fff; padding: 10px 24px; border-radius: 6px; text-decoration: none; font-size: 14px; font-weight: 600;">
-        Download Invoice PDF
-      </a>
-    </div>
+    ${ctaBlock}
 
     <p style="margin: 0; font-size: 12px; color: #9ca3af; text-align: center;">
       ${props.orgName} | Powered by RoomBook
