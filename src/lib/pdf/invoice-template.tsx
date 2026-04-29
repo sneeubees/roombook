@@ -30,24 +30,25 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   orgIdentity: {
-    flexDirection: "row",
+    flexDirection: "column",
     alignItems: "flex-start",
-    gap: 12,
     maxWidth: 320,
   },
   orgLogo: {
-    width: 56,
-    height: 56,
+    width: 64,
+    height: 64,
     objectFit: "contain",
+    marginBottom: 6,
   },
   orgName: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: "bold",
     color: "#111",
+    marginBottom: 2,
   },
   orgDetails: {
-    fontSize: 9,
-    color: "#666",
+    fontSize: 10,
+    color: "#555",
     lineHeight: 1.5,
   },
   invoiceTitle: {
