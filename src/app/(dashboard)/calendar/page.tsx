@@ -473,16 +473,21 @@ export default function CalendarPage() {
   }
 
   // ---- Booker coloring (single-room view) & label logic ----
-  const bookerColorMap = useMemo(() => {
-    if (!bookings) return new Map<string, number>();
-    const unique = Array.from(new Set(bookings.map((b) => b.userId))).sort();
-    return new Map(unique.map((u, i) => [u, i] as const));
-  }, [bookings]);
+  // Booker colors are derived from a deterministic hash of the userId so a
+  // booker keeps the same colour regardless of who else has booked. (The
+  // old approach indexed sorted unique userIds — adding a new booker
+  // shuffled everyone else's colour.)
+  function bookerColorIndex(userId: string): number {
+    let h = 0;
+    for (let i = 0; i < userId.length; i++) {
+      h = (h * 31 + userId.charCodeAt(i)) >>> 0;
+    }
+    return h;
+  }
 
   function getColorForBooking(booking: NonNullable<typeof bookings>[0]) {
     if (selectedRoom) {
-      const idx = bookerColorMap.get(booking.userId) ?? 0;
-      return getRoomColor(idx);
+      return getRoomColor(bookerColorIndex(booking.userId));
     }
     return getColorForRoom(booking.roomId);
   }
