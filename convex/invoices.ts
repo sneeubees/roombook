@@ -1,6 +1,7 @@
 import { v } from "convex/values";
 import { action, mutation, query } from "./_generated/server";
 import { api, internal } from "./_generated/api";
+import { getAuthUserId } from "@convex-dev/auth/server";
 
 export const listByOrg = query({
   args: { orgId: v.id("organizations") },
@@ -164,6 +165,54 @@ export const cancelForPeriod = mutation({
       });
     }
     return target.length;
+  },
+});
+
+// Permanently delete a cancelled invoice (and its line items). This is a
+// hard delete — only allowed once the invoice is in a "cancelled" state so
+// active / paid invoices can never be quietly dropped from the audit trail.
+// Owner of the org or super-admin only.
+export const deleteCancelled = mutation({
+  args: { id: v.id("invoices") },
+  handler: async (ctx, args) => {
+    const actorId = await getAuthUserId(ctx);
+    if (!actorId) throw new Error("Not authenticated");
+
+    const invoice = await ctx.db.get(args.id);
+    if (!invoice) throw new Error("Invoice not found");
+    if (invoice.status !== "cancelled") {
+      throw new Error("Only cancelled invoices can be deleted");
+    }
+
+    // Authorisation — owner of the invoice's org or super-admin.
+    const actorProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", actorId))
+      .unique();
+    const isSuperAdmin = actorProfile?.isSuperAdmin === true;
+
+    if (!isSuperAdmin) {
+      const membership = await ctx.db
+        .query("memberships")
+        .withIndex("by_org_user", (q) =>
+          q.eq("orgId", invoice.orgId).eq("userId", actorId)
+        )
+        .unique();
+      if (!membership || membership.role !== "owner") {
+        throw new Error("Only the owner can delete cancelled invoices");
+      }
+    }
+
+    // Drop the line items first.
+    const lineItems = await ctx.db
+      .query("invoiceLineItems")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.id))
+      .collect();
+    for (const li of lineItems) {
+      await ctx.db.delete(li._id);
+    }
+
+    await ctx.db.delete(args.id);
   },
 });
 
@@ -341,8 +390,18 @@ export const generateNow = action({
     }
 
     let count = 0;
-    let seq = 1;
     const pEnd = new Date(endStr);
+
+    // Start the sequence past whatever is already in the books for this
+    // prefix + year + month so regenerated invoices always get fresh,
+    // never-reused numbers (cancelled invoices count too).
+    const yyyy = pEnd.getFullYear();
+    const mm = String(pEnd.getMonth() + 1).padStart(2, "0");
+    const maxSeq: number = await ctx.runQuery(
+      internal.invoiceGenerationHelpers.getMaxSeqForMonth,
+      { orgId: org._id, prefix: org.invoicePrefix, year: yyyy, month: mm }
+    );
+    let seq = maxSeq + 1;
 
     // Rates are treated as VAT-inclusive. When VAT is enabled, split the
     // total into subtotal + tax so the invoice shows both lines. When VAT

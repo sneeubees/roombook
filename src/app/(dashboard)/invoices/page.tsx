@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, useAction } from "convex/react";
+import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import type { Id } from "../../../../convex/_generated/dataModel";
 import { useOrgData } from "@/hooks/use-org-data";
@@ -31,7 +31,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FileDown, FilePlus, Mail } from "lucide-react";
+import { FileDown, FilePlus, Mail, Trash2 } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -67,6 +67,12 @@ export default function InvoicesPage() {
   const generateInvoices = useAction(api.invoices.generateNow);
   const regenerateForPeriod = useAction(api.invoices.regenerateForPeriod);
   const emailInvoices = useAction(api.invoices.emailInvoices);
+  const deleteCancelledInvoice = useMutation(api.invoices.deleteCancelled);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    id: Id<"invoices">;
+    invoiceNumber: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [showEmailDialog, setShowEmailDialog] = useState(false);
   const [emailTargetUserId, setEmailTargetUserId] = useState<string>("all");
   const [isEmailing, setIsEmailing] = useState(false);
@@ -207,18 +213,37 @@ export default function InvoicesPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => {
-                            window.open(
-                              `/api/invoices/${invoice._id}/pdf`,
-                              "_blank"
-                            );
-                          }}
-                        >
-                          <FileDown className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1 justify-end">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            title="Download PDF"
+                            onClick={() => {
+                              window.open(
+                                `/api/invoices/${invoice._id}/pdf`,
+                                "_blank"
+                              );
+                            }}
+                          >
+                            <FileDown className="h-4 w-4" />
+                          </Button>
+                          {isOwner && invoice.status === "cancelled" && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Delete cancelled invoice"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() =>
+                                setDeleteConfirm({
+                                  id: invoice._id,
+                                  invoiceNumber: invoice.invoiceNumber,
+                                })
+                              }
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -460,6 +485,59 @@ export default function InvoicesPage() {
               }}
             >
               {isGenerating ? "Regenerating..." : "Yes, regenerate"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete cancelled invoice confirm */}
+      <Dialog
+        open={deleteConfirm !== null}
+        onOpenChange={(open) => !open && setDeleteConfirm(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete cancelled invoice?</DialogTitle>
+            <DialogDescription>
+              This permanently removes invoice{" "}
+              <strong className="font-mono">
+                {deleteConfirm?.invoiceNumber}
+              </strong>{" "}
+              and its line items. This cannot be undone. Only cancelled
+              invoices can be deleted.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirm(null)}
+              disabled={isDeleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isDeleting}
+              onClick={async () => {
+                if (!deleteConfirm) return;
+                setIsDeleting(true);
+                try {
+                  await deleteCancelledInvoice({ id: deleteConfirm.id });
+                  toast.success(
+                    `Deleted invoice ${deleteConfirm.invoiceNumber}`
+                  );
+                  setDeleteConfirm(null);
+                } catch (err) {
+                  const msg = err instanceof Error ? err.message : "";
+                  toast.error("Could not delete invoice", {
+                    description: cleanErrorMessage(msg) || "Unknown error",
+                  });
+                } finally {
+                  setIsDeleting(false);
+                }
+              }}
+            >
+              {isDeleting ? "Deleting..." : "Yes, delete permanently"}
             </Button>
           </DialogFooter>
         </DialogContent>

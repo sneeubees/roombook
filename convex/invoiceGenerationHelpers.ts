@@ -9,6 +9,39 @@ export const getOrgById = internalQuery({
   },
 });
 
+/**
+ * Returns the highest trailing sequence number used for invoices in the
+ * given org + prefix + YYYY + MM bucket — across ALL invoices, including
+ * cancelled ones. Used so regeneration always issues fresh, never-reused
+ * invoice numbers within the same period.
+ *
+ * Invoice number format: `${prefix}-YYYY-MM-NNN`
+ */
+export const getMaxSeqForMonth = internalQuery({
+  args: {
+    orgId: v.id("organizations"),
+    prefix: v.string(),
+    year: v.number(),
+    month: v.string(), // zero-padded "01"-"12"
+  },
+  handler: async (ctx, args) => {
+    const invoices = await ctx.db
+      .query("invoices")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .collect();
+
+    const head = `${args.prefix}-${args.year}-${args.month}-`;
+    let max = 0;
+    for (const inv of invoices) {
+      if (!inv.invoiceNumber.startsWith(head)) continue;
+      const tail = inv.invoiceNumber.slice(head.length);
+      const n = parseInt(tail, 10);
+      if (!Number.isNaN(n) && n > max) max = n;
+    }
+    return max;
+  },
+});
+
 export const getAllOrgs = internalQuery({
   args: {},
   handler: async (ctx) => {
