@@ -261,7 +261,13 @@ export function InvoiceDocument({ data }: { data: InvoiceData }) {
             <View>
               <Text style={styles.orgName}>{data.orgName}</Text>
               <View style={styles.orgDetails}>
-                {data.orgAddress && <Text>{data.orgAddress}</Text>}
+                {data.orgAddress &&
+                  data.orgAddress
+                    .split(/\r?\n/)
+                    .map((line) => line.trim())
+                    .filter(Boolean)
+                    .slice(0, 3)
+                    .map((line, i) => <Text key={i}>{line}</Text>)}
                 {data.orgPhone && <Text>Tel: {data.orgPhone}</Text>}
                 {data.orgEmail && <Text>{data.orgEmail}</Text>}
                 {data.vatEnabled !== false && data.orgVatNumber && (
@@ -280,21 +286,25 @@ export function InvoiceDocument({ data }: { data: InvoiceData }) {
               </Text>
               {data.dueDate && <Text>Due: {data.dueDate}</Text>}
             </View>
-            <Text
-              style={[
-                styles.statusBadge,
-                {
-                  color:
-                    data.status === "paid"
-                      ? "#16a34a"
-                      : data.status === "overdue"
-                        ? "#dc2626"
-                        : "#6b7280",
-                },
-              ]}
-            >
-              {data.status.toUpperCase()}
-            </Text>
+            {/* Hide the badge for "draft" — drafts are an internal state
+                and clutter the invoice. Other statuses still show. */}
+            {data.status !== "draft" && (
+              <Text
+                style={[
+                  styles.statusBadge,
+                  {
+                    color:
+                      data.status === "paid"
+                        ? "#16a34a"
+                        : data.status === "overdue"
+                          ? "#dc2626"
+                          : "#6b7280",
+                  },
+                ]}
+              >
+                {data.status.toUpperCase()}
+              </Text>
+            )}
           </View>
         </View>
 

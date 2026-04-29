@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -186,14 +187,15 @@ export default function SettingsPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="companyAddress">Address</Label>
-              <Input
+              <Textarea
                 id="companyAddress"
                 value={companyAddress}
                 onChange={(e) => setCompanyAddress(e.target.value)}
-                placeholder="e.g., 12 Main Street, Cape Town, 8001"
+                placeholder={"12 Main Street\nGardens\nCape Town, 8001"}
+                rows={3}
               />
               <p className="text-xs text-muted-foreground">
-                Shown on invoices alongside your company name and logo.
+                Up to three lines. Shown under your company name on invoices.
               </p>
             </div>
             <div className="space-y-2">
