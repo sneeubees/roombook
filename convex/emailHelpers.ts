@@ -72,6 +72,41 @@ export const getBookingWithDetails = internalQuery({
   },
 });
 
+export const getCancellationRequestDetails = internalQuery({
+  args: {
+    bookingId: v.id("bookings"),
+    requestedByUserId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const booking = await ctx.db.get(args.bookingId);
+    if (!booking) return null;
+    const room = await ctx.db.get(booking.roomId);
+    const org = await ctx.db.get(booking.orgId);
+    const requester = await ctx.db.get(args.requestedByUserId);
+    const staffEmails = await staffEmailsForOrg(ctx, booking.orgId);
+    const ownerEmail = await ownerEmailForOrg(ctx, org);
+
+    return {
+      bookingId: args.bookingId,
+      roomName: room?.name ?? "Unknown Room",
+      orgName: org?.name ?? "Unknown Organisation",
+      requesterName:
+        (requester as { name?: string } | null)?.name ??
+        (requester as { email?: string } | null)?.email ??
+        "Unknown",
+      requesterEmail:
+        (requester as { email?: string } | null)?.email ?? "",
+      bookingUserName: booking.userName,
+      date: booking.date,
+      slotType: booking.slotType,
+      startTime: booking.startTime,
+      endTime: booking.endTime,
+      staffEmails,
+      ownerEmail,
+    };
+  },
+});
+
 export const getInvoiceWithDetails = internalQuery({
   args: { invoiceId: v.id("invoices") },
   handler: async (ctx, args) => {

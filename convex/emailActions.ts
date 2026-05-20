@@ -94,6 +94,60 @@ export const sendBookingCancellation = internalAction({
   },
 });
 
+export const sendCancellationRequest = internalAction({
+  args: {
+    bookingId: v.id("bookings"),
+    requestedByUserId: v.id("users"),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const detail: any = await ctx.runQuery(
+      internal.emailHelpers.getCancellationRequestDetails,
+      {
+        bookingId: args.bookingId,
+        requestedByUserId: args.requestedByUserId,
+      }
+    );
+    if (!detail) return;
+    if (!detail.staffEmails || detail.staffEmails.length === 0) return;
+
+    const slot =
+      detail.slotType === "session" && detail.startTime && detail.endTime
+        ? `${detail.startTime} - ${detail.endTime}`
+        : detail.slotType === "full_day"
+          ? "Full Day"
+          : (detail.slotType as string).toUpperCase();
+
+    // Send to the first staff email as "to" and the rest as bcc — keeps a
+    // clean Resend / SMTP audit while still hitting every manager + owner.
+    const [primary, ...rest] = detail.staffEmails as string[];
+    try {
+      await fetch(`${APP_URL}/api/email/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "cancellation_request",
+          data: {
+            email: primary,
+            bcc: rest,
+            replyTo: detail.requesterEmail || detail.ownerEmail,
+            requesterName: detail.requesterName,
+            bookingUserName: detail.bookingUserName,
+            roomName: detail.roomName,
+            date: detail.date,
+            slot,
+            orgName: detail.orgName,
+            reason: args.reason,
+            bookingUrl: `${APP_URL}/bookings`,
+          },
+        }),
+      });
+    } catch (e) {
+      console.error("Failed to send cancellation request email:", e);
+    }
+  },
+});
+
 export const sendInvoiceEmail = internalAction({
   args: {
     invoiceId: v.id("invoices"),

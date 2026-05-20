@@ -393,17 +393,14 @@ export const cancel = mutation({
     if (!booking) throw new Error("Booking not found");
     if (booking.status === "cancelled") throw new Error("Already cancelled");
 
-    // 30-minute rule: bookers cannot cancel from 30 minutes before the
-    // booking onwards. Owners / managers / super-admins are not bound by
-    // this so they can still cancel no-shows or in-progress slots.
+    // Bookers cannot self-cancel any more — they have to send a
+    // cancellation request to staff via bookings.requestCancellation,
+    // and an owner / manager actions it.
     const isStaff = await actorIsStaff(ctx, booking.orgId, actorId);
     if (!isStaff) {
-      const cutoff = bookingStartMs(booking) - 30 * 60 * 1000;
-      if (Date.now() >= cutoff) {
-        throw new Error(
-          "Bookings can only be cancelled by you up to 30 minutes before the start time. Please ask an owner or manager to cancel this booking."
-        );
-      }
+      throw new Error(
+        "Only an owner or manager can cancel a booking. Please send a cancellation request instead."
+      );
     }
 
     const room = await ctx.db.get(booking.roomId);
@@ -553,6 +550,67 @@ export const cancel = mutation({
     });
 
     return { isBillable, waitlistNotified: waitlistEntries.length };
+  },
+});
+
+/**
+ * Booker-initiated cancellation request. Records the request on the
+ * booking and emails the org's owner + managers so they can action it.
+ * The booking is NOT cancelled — staff must still call `cancel`.
+ */
+export const requestCancellation = mutation({
+  args: {
+    id: v.id("bookings"),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const actorId = await getAuthUserId(ctx);
+    if (!actorId) throw new Error("Not authenticated");
+
+    const booking = await ctx.db.get(args.id);
+    if (!booking) throw new Error("Booking not found");
+    if (booking.status === "cancelled") {
+      throw new Error("This booking is already cancelled");
+    }
+
+    // Booker must own the booking (or have been booked-for).
+    const ownsBooking =
+      booking.userId === actorId || booking.bookedBy === actorId;
+    const isStaff = await actorIsStaff(ctx, booking.orgId, actorId);
+    if (!ownsBooking && !isStaff) {
+      throw new Error("You can only request cancellation of your own bookings");
+    }
+
+    await ctx.db.patch(args.id, {
+      cancellationRequestedAt: Date.now(),
+      cancellationRequestedBy: actorId,
+      cancellationRequestReason: args.reason,
+    });
+
+    // Heads-up to owner + managers.
+    await ctx.scheduler.runAfter(
+      0,
+      internal.emailActions.sendCancellationRequest,
+      { bookingId: args.id, requestedByUserId: actorId, reason: args.reason }
+    );
+
+    const actor = await ctx.db.get(actorId);
+    const actorName =
+      (actor as { name?: string } | null)?.name ??
+      (actor as { email?: string } | null)?.email ??
+      "Unknown";
+
+    await ctx.db.insert("activityLogs", {
+      orgId: booking.orgId,
+      actorId,
+      actorName,
+      actorRole: "booker",
+      action: "booking_cancellation_requested",
+      targetType: "booking",
+      targetId: args.id,
+      targetName: `Booking on ${booking.date}`,
+      details: { reason: args.reason },
+    });
   },
 });
 

@@ -141,6 +141,11 @@ export default defineSchema({
     cancelledAt: v.optional(v.number()),
     cancelledBy: v.optional(v.id("users")),
     cancellationReason: v.optional(v.string()),
+    // Booker-initiated cancellation request — owners / managers see this
+    // and decide whether to actually cancel.
+    cancellationRequestedAt: v.optional(v.number()),
+    cancellationRequestedBy: v.optional(v.id("users")),
+    cancellationRequestReason: v.optional(v.string()),
     notes: v.optional(v.string()),
     excludeFromInvoice: v.optional(v.boolean()),
   })

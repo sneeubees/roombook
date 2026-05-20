@@ -58,6 +58,7 @@ export default function BookingsPage() {
   const { orgId } = useOrgData();
   const { isOwner, canManage } = useUserRole();
   const cancelBooking = useMutation(api.bookings.cancel);
+  const requestCancellation = useMutation(api.bookings.requestCancellation);
   const editBooking = useMutation(api.bookings.editDetails);
   const setRate = useMutation(api.bookings.setRate);
   const [rateTarget, setRateTarget] = useState<{
@@ -111,20 +112,30 @@ export default function BookingsPage() {
     if (!cancelTarget || !me?._id) return;
     setIsSubmitting(true);
     try {
-      const result = await cancelBooking({
-        id: cancelTarget,
-        reason: cancelReason || undefined,
-      });
-      toast.success(
-        result.isBillable
-          ? "Booking cancelled (late cancellation - will be billed)"
-          : "Booking cancelled"
-      );
+      if (canManage) {
+        const result = await cancelBooking({
+          id: cancelTarget,
+          reason: cancelReason || undefined,
+        });
+        toast.success(
+          result.isBillable
+            ? "Booking cancelled (late cancellation - will be billed)"
+            : "Booking cancelled"
+        );
+      } else {
+        await requestCancellation({
+          id: cancelTarget,
+          reason: cancelReason || undefined,
+        });
+        toast.success("Cancellation request sent to your administrator.");
+      }
       setCancelDialogOpen(false);
       setCancelReason("");
       setCancelTarget(null);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Failed to cancel");
+      toast.error(
+        error instanceof Error ? error.message : "Failed to process request"
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -189,29 +200,21 @@ export default function BookingsPage() {
                       .sort((a, b) => b.date.localeCompare(a.date))
                       .map((booking) => {
                         const room = rooms?.find((r) => r._id === booking.roomId);
-                        // 30-minute rule: bookers cannot cancel within 30
-                        // minutes of (or after) the booking start. Owners,
-                        // managers, and super-admins (`canManage`) can cancel
-                        // at any time.
-                        let startTimeStr = "08:00";
-                        if (
-                          booking.slotType === "session" &&
-                          booking.startTime
-                        ) {
-                          startTimeStr = booking.startTime;
-                        } else if (booking.slotType === "pm") {
-                          startTimeStr = "13:00";
-                        }
-                        const bookingStart = new Date(
-                          `${booking.date}T${startTimeStr}:00`
-                        );
-                        const withinLockout =
-                          new Date() >=
-                          new Date(bookingStart.getTime() - 30 * 60 * 1000);
+                        // Bookers can always send a cancellation request;
+                        // only staff (`canManage`) can perform the actual
+                        // cancellation.
+                        const bookingExt = booking as typeof booking & {
+                          cancellationRequestedAt?: number;
+                        };
+                        const hasPendingRequest =
+                          !!bookingExt.cancellationRequestedAt;
                         const canCancel =
                           booking.status === "confirmed" &&
                           (canManage ||
-                            (booking.userId === me?._id && !withinLockout));
+                            (booking.userId === me?._id && !hasPendingRequest));
+                        const cancelLabel = canManage
+                          ? "Cancel"
+                          : "Request Cancellation";
                         return (
                           <TableRow key={booking._id}>
                             <TableCell>
@@ -329,8 +332,16 @@ export default function BookingsPage() {
                                     }}
                                   >
                                     <X className="h-3 w-3 mr-1" />
-                                    Cancel
+                                    {cancelLabel}
                                   </Button>
+                                )}
+                                {!canManage && hasPendingRequest && (
+                                  <span
+                                    className="text-[10px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5"
+                                    title="Cancellation request sent"
+                                  >
+                                    Cancellation requested
+                                  </span>
                                 )}
                               </div>
                             </TableCell>
@@ -353,16 +364,24 @@ export default function BookingsPage() {
       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Cancel Booking</DialogTitle>
+            <DialogTitle>
+              {canManage ? "Cancel Booking" : "Request Cancellation"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Are you sure you want to cancel this booking?
+              {canManage
+                ? "Are you sure you want to cancel this booking?"
+                : "We'll email an owner or manager with your request. They'll decide whether to cancel the booking."}
             </p>
             <Textarea
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
-              placeholder="Reason for cancellation (optional)"
+              placeholder={
+                canManage
+                  ? "Reason for cancellation (optional)"
+                  : "Reason for the request (optional)"
+              }
             />
           </div>
           <DialogFooter>
@@ -374,7 +393,13 @@ export default function BookingsPage() {
               onClick={handleCancel}
               disabled={isSubmitting}
             >
-              {isSubmitting ? "Cancelling..." : "Confirm Cancel"}
+              {isSubmitting
+                ? canManage
+                  ? "Cancelling..."
+                  : "Sending..."
+                : canManage
+                  ? "Confirm Cancel"
+                  : "Send Request"}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -184,6 +184,7 @@ export default function CalendarPage() {
 
   const createBooking = useMutation(api.bookings.create);
   const cancelBooking = useMutation(api.bookings.cancel);
+  const requestCancellation = useMutation(api.bookings.requestCancellation);
   const updateBooking = useMutation(api.bookings.update);
   const editBookingDetails = useMutation(api.bookings.editDetails);
   const joinWaitlist = useMutation(api.waitlist.join);
@@ -1497,29 +1498,21 @@ export default function CalendarPage() {
             if (!booking) return null;
             const room = rooms?.find((r) => r._id === booking.roomId);
             const isSession = booking.slotType === "session" && booking.startTime && booking.endTime;
-            // Past bookings: only description / notes editable. Time edits and
-            // cancellation are blocked because the booking has already happened.
+            // Past bookings: only description / notes editable. Time edits
+            // and any cancellation flow are blocked because the booking has
+            // already happened.
             const bookingDate = new Date(booking.date + "T23:59:59");
             const isPastBooking = bookingDate < new Date();
 
-            // 30-minute rule for bookers: they can't cancel within 30 minutes
-            // of (or after) the booking start. Owners / managers can.
-            let bookingStartTimeStr = "08:00";
-            if (booking.slotType === "session" && booking.startTime) {
-              bookingStartTimeStr = booking.startTime;
-            } else if (booking.slotType === "pm") {
-              bookingStartTimeStr = "13:00";
-            }
-            const bookingStart = new Date(
-              `${booking.date}T${bookingStartTimeStr}:00`
-            );
-            const cancelCutoff = new Date(
-              bookingStart.getTime() - 30 * 60 * 1000
-            );
-            const withinBookerLockout = new Date() >= cancelCutoff;
-            const canCancelNow =
-              !isPastBooking &&
-              (canManage || !withinBookerLockout);
+            // Cancellation policy:
+            //   - Staff (owner / manager / super-admin)  → can cancel directly
+            //   - Booker                                  → must request
+            //     cancellation, which emails staff. Staff then action it.
+            const cancellationAlreadyRequested =
+              (booking as { cancellationRequestedAt?: number })
+                .cancellationRequestedAt !== undefined &&
+              (booking as { cancellationRequestedAt?: number })
+                .cancellationRequestedAt !== null;
             return (
               <div className="space-y-4">
                 <div className="text-sm text-muted-foreground">
@@ -1608,7 +1601,7 @@ export default function CalendarPage() {
                   >
                     {isSubmitting ? "Saving..." : "Save Changes"}
                   </Button>
-                  {canCancelNow ? (
+                  {!isPastBooking && canManage && (
                     <div className="space-y-2 w-full">
                       <Textarea
                         value={cancelReason}
@@ -1623,16 +1616,68 @@ export default function CalendarPage() {
                       >
                         {isSubmitting ? "Cancelling..." : "Cancel Booking"}
                       </Button>
+                      {cancellationAlreadyRequested && (
+                        <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900 w-full">
+                          The booker has requested this booking be cancelled.
+                        </div>
+                      )}
                     </div>
-                  ) : (
-                    !isPastBooking &&
-                    withinBookerLockout && (
-                      <div className="rounded-md bg-muted/50 border px-3 py-2 text-xs text-muted-foreground w-full">
-                        Cancellations close 30 minutes before the booking
-                        starts. Ask an owner or manager to cancel this for you.
-                      </div>
-                    )
                   )}
+
+                  {!isPastBooking &&
+                    !canManage &&
+                    !cancellationAlreadyRequested && (
+                      <div className="space-y-2 w-full">
+                        <Textarea
+                          value={cancelReason}
+                          onChange={(e) => setCancelReason(e.target.value)}
+                          placeholder="Reason for cancellation (optional)"
+                        />
+                        <Button
+                          variant="destructive"
+                          disabled={isSubmitting}
+                          className="w-full"
+                          onClick={async () => {
+                            if (!selectedBookingId) return;
+                            setIsSubmitting(true);
+                            try {
+                              await requestCancellation({
+                                id: selectedBookingId,
+                                reason: cancelReason || undefined,
+                              });
+                              toast.success(
+                                "Cancellation request sent to your administrator."
+                              );
+                              setShowDetailDialog(false);
+                              setCancelReason("");
+                            } catch (err) {
+                              toast.error(
+                                err instanceof Error
+                                  ? err.message
+                                  : "Could not send cancellation request"
+                              );
+                            } finally {
+                              setIsSubmitting(false);
+                            }
+                          }}
+                        >
+                          {isSubmitting
+                            ? "Sending..."
+                            : "Request Cancellation"}
+                        </Button>
+                        <p className="text-xs text-muted-foreground">
+                          Only an owner or manager can cancel a booking. We&apos;ll email them with your request.
+                        </p>
+                      </div>
+                    )}
+
+                  {!isPastBooking &&
+                    !canManage &&
+                    cancellationAlreadyRequested && (
+                      <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-xs text-amber-900 w-full">
+                        Cancellation request sent. An owner or manager will be in touch.
+                      </div>
+                    )}
                 </DialogFooter>
               </div>
             );

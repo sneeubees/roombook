@@ -5,6 +5,7 @@ import { invoiceReadyHtml } from "@/lib/email/templates/invoice-ready";
 import { waitlistAvailableHtml } from "@/lib/email/templates/waitlist-available";
 import { invitationEmailHtml } from "@/lib/email/templates/invitation-email";
 import { emailVerificationHtml } from "@/lib/email/templates/email-verification";
+import { cancellationRequestHtml } from "@/lib/email/templates/cancellation-request";
 import { buildInvoicePdf } from "@/lib/pdf/build-invoice-pdf";
 import type { Id } from "../../../../../convex/_generated/dataModel";
 
@@ -35,6 +36,20 @@ export async function POST(request: Request) {
           rate: data.rate,
           orgName: data.orgName,
           description: data.description,
+        });
+        break;
+
+      case "cancellation_request":
+        subject = `Cancellation requested — ${data.roomName} on ${data.date}`;
+        html = cancellationRequestHtml({
+          requesterName: data.requesterName,
+          bookingUserName: data.bookingUserName,
+          roomName: data.roomName,
+          date: data.date,
+          slot: data.slot,
+          orgName: data.orgName,
+          reason: data.reason,
+          bookingUrl: data.bookingUrl,
         });
         break;
 
