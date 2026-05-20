@@ -14,6 +14,48 @@ function timesOverlap(
   return aStart < bEnd && bStart < aEnd;
 }
 
+/**
+ * Effective start time (ms epoch) of a booking. Used to enforce the
+ * 30-minute cancellation rule on bookers. Sessions use the actual start
+ * time; slot-based bookings fall back to sensible defaults:
+ *   - am       → 08:00
+ *   - pm       → 13:00
+ *   - full_day → 08:00
+ */
+export function bookingStartMs(booking: {
+  date: string;
+  slotType: string;
+  startTime?: string;
+}): number {
+  let timeStr = "08:00";
+  if (booking.slotType === "session" && booking.startTime) {
+    timeStr = booking.startTime;
+  } else if (booking.slotType === "pm") {
+    timeStr = "13:00";
+  }
+  return new Date(`${booking.date}T${timeStr}:00`).getTime();
+}
+
+/** True if the actor is owner / manager of the org or a super-admin. */
+async function actorIsStaff(
+  ctx: { db: any },
+  orgId: Id<"organizations">,
+  actorId: Id<"users">
+): Promise<boolean> {
+  const profile = await ctx.db
+    .query("userProfiles")
+    .withIndex("by_user", (q: any) => q.eq("userId", actorId))
+    .unique();
+  if (profile?.isSuperAdmin === true) return true;
+  const m = await ctx.db
+    .query("memberships")
+    .withIndex("by_org_user", (q: any) =>
+      q.eq("orgId", orgId).eq("userId", actorId)
+    )
+    .unique();
+  return m?.role === "owner" || m?.role === "manager";
+}
+
 function durationMinutes(start: string, end: string): number {
   const [sh, sm] = start.split(":").map(Number);
   const [eh, em] = end.split(":").map(Number);
@@ -350,6 +392,19 @@ export const cancel = mutation({
     const booking = await ctx.db.get(args.id);
     if (!booking) throw new Error("Booking not found");
     if (booking.status === "cancelled") throw new Error("Already cancelled");
+
+    // 30-minute rule: bookers cannot cancel from 30 minutes before the
+    // booking onwards. Owners / managers / super-admins are not bound by
+    // this so they can still cancel no-shows or in-progress slots.
+    const isStaff = await actorIsStaff(ctx, booking.orgId, actorId);
+    if (!isStaff) {
+      const cutoff = bookingStartMs(booking) - 30 * 60 * 1000;
+      if (Date.now() >= cutoff) {
+        throw new Error(
+          "Bookings can only be cancelled by you up to 30 minutes before the start time. Please ask an owner or manager to cancel this booking."
+        );
+      }
+    }
 
     const room = await ctx.db.get(booking.roomId);
     let isBillable = false;

@@ -1501,6 +1501,25 @@ export default function CalendarPage() {
             // cancellation are blocked because the booking has already happened.
             const bookingDate = new Date(booking.date + "T23:59:59");
             const isPastBooking = bookingDate < new Date();
+
+            // 30-minute rule for bookers: they can't cancel within 30 minutes
+            // of (or after) the booking start. Owners / managers can.
+            let bookingStartTimeStr = "08:00";
+            if (booking.slotType === "session" && booking.startTime) {
+              bookingStartTimeStr = booking.startTime;
+            } else if (booking.slotType === "pm") {
+              bookingStartTimeStr = "13:00";
+            }
+            const bookingStart = new Date(
+              `${booking.date}T${bookingStartTimeStr}:00`
+            );
+            const cancelCutoff = new Date(
+              bookingStart.getTime() - 30 * 60 * 1000
+            );
+            const withinBookerLockout = new Date() >= cancelCutoff;
+            const canCancelNow =
+              !isPastBooking &&
+              (canManage || !withinBookerLockout);
             return (
               <div className="space-y-4">
                 <div className="text-sm text-muted-foreground">
@@ -1589,7 +1608,7 @@ export default function CalendarPage() {
                   >
                     {isSubmitting ? "Saving..." : "Save Changes"}
                   </Button>
-                  {!isPastBooking && (
+                  {canCancelNow ? (
                     <div className="space-y-2 w-full">
                       <Textarea
                         value={cancelReason}
@@ -1605,6 +1624,14 @@ export default function CalendarPage() {
                         {isSubmitting ? "Cancelling..." : "Cancel Booking"}
                       </Button>
                     </div>
+                  ) : (
+                    !isPastBooking &&
+                    withinBookerLockout && (
+                      <div className="rounded-md bg-muted/50 border px-3 py-2 text-xs text-muted-foreground w-full">
+                        Cancellations close 30 minutes before the booking
+                        starts. Ask an owner or manager to cancel this for you.
+                      </div>
+                    )
                   )}
                 </DialogFooter>
               </div>

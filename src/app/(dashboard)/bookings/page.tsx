@@ -56,7 +56,7 @@ import {
 export default function BookingsPage() {
   const me = useQuery(api.users.currentUser);
   const { orgId } = useOrgData();
-  const { isOwner } = useUserRole();
+  const { isOwner, canManage } = useUserRole();
   const cancelBooking = useMutation(api.bookings.cancel);
   const editBooking = useMutation(api.bookings.editDetails);
   const setRate = useMutation(api.bookings.setRate);
@@ -189,9 +189,29 @@ export default function BookingsPage() {
                       .sort((a, b) => b.date.localeCompare(a.date))
                       .map((booking) => {
                         const room = rooms?.find((r) => r._id === booking.roomId);
+                        // 30-minute rule: bookers cannot cancel within 30
+                        // minutes of (or after) the booking start. Owners,
+                        // managers, and super-admins (`canManage`) can cancel
+                        // at any time.
+                        let startTimeStr = "08:00";
+                        if (
+                          booking.slotType === "session" &&
+                          booking.startTime
+                        ) {
+                          startTimeStr = booking.startTime;
+                        } else if (booking.slotType === "pm") {
+                          startTimeStr = "13:00";
+                        }
+                        const bookingStart = new Date(
+                          `${booking.date}T${startTimeStr}:00`
+                        );
+                        const withinLockout =
+                          new Date() >=
+                          new Date(bookingStart.getTime() - 30 * 60 * 1000);
                         const canCancel =
                           booking.status === "confirmed" &&
-                          (isOwner || booking.userId === me?._id);
+                          (canManage ||
+                            (booking.userId === me?._id && !withinLockout));
                         return (
                           <TableRow key={booking._id}>
                             <TableCell>
