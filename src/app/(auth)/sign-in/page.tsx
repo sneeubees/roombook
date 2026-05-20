@@ -34,7 +34,7 @@ export default function SignInPage() {
     setIsSubmitting(true);
     try {
       await signIn("password", {
-        email,
+        email: email.trim().toLowerCase(),
         password,
         flow: "signIn",
       });
@@ -74,7 +74,11 @@ export default function SignInPage() {
               <Input
                 id="email"
                 type="email"
+                inputMode="email"
                 autoComplete="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

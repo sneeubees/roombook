@@ -40,7 +40,7 @@ export default function SignUpPage() {
     setIsSubmitting(true);
     try {
       await signIn("password", {
-        email,
+        email: email.trim().toLowerCase(),
         password,
         name: fullName,
         flow: "signUp",
@@ -59,7 +59,7 @@ export default function SignUpPage() {
     setIsSubmitting(true);
     try {
       await signIn("password", {
-        email,
+        email: email.trim().toLowerCase(),
         code,
         flow: "email-verification",
       });
@@ -81,7 +81,7 @@ export default function SignUpPage() {
     if (!email) return;
     setIsSubmitting(true);
     try {
-      await signIn("resend-otp", { email });
+      await signIn("resend-otp", { email: email.trim().toLowerCase() });
       toast.success("A new code is on its way.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not resend");
@@ -132,7 +132,11 @@ export default function SignUpPage() {
                 <Input
                   id="email"
                   type="email"
+                  inputMode="email"
                   autoComplete="email"
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required

@@ -14,6 +14,36 @@ async function ownerEmailForOrg(
   return org.email || undefined;
 }
 
+/**
+ * All staff email addresses for an org: the owner + every active manager.
+ * Used as BCC on booking confirmations / cancellations so management has
+ * visibility on bookings made by their team.
+ */
+async function staffEmailsForOrg(
+  ctx: any,
+  orgId: any,
+  excludeUserId?: any
+): Promise<string[]> {
+  const memberships = await ctx.db
+    .query("memberships")
+    .withIndex("by_org", (q: any) => q.eq("orgId", orgId))
+    .collect();
+  const staffIds = memberships
+    .filter(
+      (m: any) =>
+        (m.role === "owner" || m.role === "manager") &&
+        (!excludeUserId || m.userId !== excludeUserId)
+    )
+    .map((m: any) => m.userId);
+  const emails: string[] = [];
+  for (const id of staffIds) {
+    const u = await ctx.db.get(id);
+    const e = (u as { email?: string } | null)?.email;
+    if (e) emails.push(e);
+  }
+  return emails;
+}
+
 export const getBookingWithDetails = internalQuery({
   args: { bookingId: v.id("bookings") },
   handler: async (ctx, args) => {
@@ -24,13 +54,20 @@ export const getBookingWithDetails = internalQuery({
     const org = await ctx.db.get(booking.orgId);
     const user = await ctx.db.get(booking.userId);
     const ownerEmail = await ownerEmailForOrg(ctx, org);
+    const userEmail =
+      (user as { email?: string } | null)?.email ?? "";
+    const staffEmails = await staffEmailsForOrg(ctx, booking.orgId);
+    // Don't BCC the booker if they are themselves an owner / manager —
+    // they already got the email as `to`.
+    const bcc = staffEmails.filter((e) => e && e !== userEmail);
 
     return {
       ...booking,
       roomName: room?.name ?? "Unknown Room",
       orgName: org?.name ?? "Unknown Organization",
-      userEmail: (user as { email?: string } | null)?.email ?? "",
+      userEmail,
       ownerEmail,
+      staffBcc: bcc,
     };
   },
 });

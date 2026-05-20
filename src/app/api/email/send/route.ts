@@ -131,11 +131,15 @@ export async function POST(request: Request) {
     }
 
     const replyTo: string | undefined = data.replyTo;
+    const bcc: string[] | undefined = Array.isArray(data.bcc)
+      ? data.bcc.filter((e: unknown): e is string => typeof e === "string" && e.length > 0)
+      : undefined;
     const success = await sendEmail({
       to,
       subject,
       html,
       replyTo,
+      bcc,
       attachments,
     });
 

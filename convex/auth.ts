@@ -10,8 +10,11 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       // approval downstream.
       verify: ResendOTP,
       profile(params) {
+        // Lowercase + trim so casing differences (esp. mobile keyboards that
+        // auto-capitalise the first letter) can't fork an account.
+        const raw = (params.email as string | undefined) ?? "";
         return {
-          email: params.email as string,
+          email: raw.trim().toLowerCase(),
           name: (params.name as string | undefined) ?? "",
         };
       },

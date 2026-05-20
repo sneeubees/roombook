@@ -29,6 +29,7 @@ export const sendBookingConfirmation = internalAction({
           type: "booking_confirmation",
           data: {
             email: booking.userEmail,
+            bcc: booking.staffBcc,
             replyTo: booking.ownerEmail,
             userName: booking.userName,
             roomName: booking.roomName,
@@ -74,6 +75,7 @@ export const sendBookingCancellation = internalAction({
           type: "booking_cancellation",
           data: {
             email: booking.userEmail,
+            bcc: booking.staffBcc,
             replyTo: booking.ownerEmail,
             userName: booking.userName,
             roomName: booking.roomName,

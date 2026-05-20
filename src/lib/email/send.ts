@@ -39,6 +39,7 @@ interface SendEmailOptions {
   subject: string;
   html: string;
   replyTo?: string;
+  bcc?: string[];
   attachments?: Array<{
     filename: string;
     content: Buffer | string;
@@ -53,6 +54,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
       const info = await smtpTransport.sendMail({
         from: FROM_EMAIL,
         to: options.to,
+        bcc: options.bcc && options.bcc.length > 0 ? options.bcc : undefined,
         replyTo: options.replyTo,
         subject: options.subject,
         html: options.html,
@@ -80,6 +82,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<boolean> {
       const { error } = await resend.emails.send({
         from: FROM_EMAIL,
         to: options.to,
+        bcc: options.bcc && options.bcc.length > 0 ? options.bcc : undefined,
         replyTo: options.replyTo,
         subject: options.subject,
         html: options.html,

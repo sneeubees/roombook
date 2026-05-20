@@ -75,6 +75,65 @@ export const backfillEmailVerification = mutation({
  * DEV-ONLY: Bootstrap the first super admin by email, activate any org they
  * belong to. Only runs if no super admin currently exists.
  */
+/**
+ * One-shot: lowercase + trim every stored email so users with a mixed-case
+ * signup email aren't locked out by a normalised sign-in flow. Touches:
+ *   - users.email
+ *   - authAccounts.providerAccountId (Convex Auth uses this for password lookups)
+ *   - userProfiles.email (if present)
+ */
+export const backfillEmailCase = mutation({
+  args: {},
+  handler: async (ctx) => {
+    let usersUpdated = 0;
+    let accountsUpdated = 0;
+    let profilesUpdated = 0;
+
+    const users = await ctx.db.query("users").collect();
+    for (const u of users) {
+      const email = (u as { email?: string }).email;
+      if (email && email !== email.trim().toLowerCase()) {
+        await ctx.db.patch(u._id, { email: email.trim().toLowerCase() } as never);
+        usersUpdated++;
+      }
+    }
+
+    const accounts = await ctx.db.query("authAccounts").collect();
+    for (const a of accounts) {
+      const pid = (a as { providerAccountId?: string }).providerAccountId;
+      if (pid && pid !== pid.trim().toLowerCase()) {
+        await ctx.db.patch(a._id, {
+          providerAccountId: pid.trim().toLowerCase(),
+        } as never);
+        accountsUpdated++;
+      }
+    }
+
+    try {
+      const profiles = await ctx.db.query("userProfiles").collect();
+      for (const p of profiles) {
+        const email = (p as { email?: string }).email;
+        if (email && email !== email.trim().toLowerCase()) {
+          await ctx.db.patch(p._id, {
+            email: email.trim().toLowerCase(),
+          } as never);
+          profilesUpdated++;
+        }
+      }
+    } catch {
+      // userProfiles may not have an email field — ignore.
+    }
+
+    return {
+      usersUpdated,
+      accountsUpdated,
+      profilesUpdated,
+      totalUsers: users.length,
+      totalAccounts: accounts.length,
+    };
+  },
+});
+
 export const bootstrapSuperAdmin = mutation({
   args: { email: v.string() },
   handler: async (ctx, args) => {
