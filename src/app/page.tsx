@@ -145,7 +145,7 @@ export default function LandingPage() {
               <DropdownMenuTrigger
                 className={
                   buttonVariants({ variant: "outline", size: "icon-sm" }) +
-                  " border-border/80 bg-white/80 shadow-sm sm:hidden"
+                  " border-border/80 bg-white/80 shadow-sm"
                 }
                 aria-label="Open menu"
               >
