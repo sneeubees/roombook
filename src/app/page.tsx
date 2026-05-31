@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
+import { RoomBookLogo } from "@/components/brand/roombook-logo";
 import { buttonVariants } from "@/components/ui/button";
 import { useCustomDomain } from "@/hooks/use-custom-domain";
 import { TIERS, formatZAR } from "@/lib/tiers";
@@ -133,14 +134,7 @@ export default function LandingPage() {
     <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-50 border-b border-border/70 bg-white/90 backdrop-blur-xl">
         <div className="container mx-auto flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm shadow-primary/20">
-              <DoorOpen className="h-5 w-5" />
-            </div>
-            <span className="font-heading text-2xl font-bold leading-none">
-              RoomBook
-            </span>
-          </div>
+          <RoomBookLogo />
           <div className="flex items-center gap-3">
             {isAuthenticated ? (
               <Link href="/dashboard" className={buttonVariants()}>

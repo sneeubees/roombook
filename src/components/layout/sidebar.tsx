@@ -8,6 +8,7 @@ import { useOrgData } from "@/hooks/use-org-data";
 import { useCustomDomain } from "@/hooks/use-custom-domain";
 import { useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { RoomBookLogo } from "@/components/brand/roombook-logo";
 import {
   CalendarDays,
   LayoutDashboard,
@@ -75,19 +76,26 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void } = {}) {
   return (
     <aside className="flex flex-col w-64 border-r bg-sidebar text-sidebar-foreground">
       <div className="p-6">
-        <Link href="/dashboard" className="flex items-center gap-2">
+        <Link href="/dashboard" className="flex items-center gap-3">
           {convexOrg?.logoUrl ? (
             <img
               src={convexOrg.logoUrl}
               alt={convexOrg.name}
               className="h-6 w-6 rounded object-contain"
             />
+          ) : !isCustomDomain && !convexOrg?.name ? (
+            <RoomBookLogo
+              markClassName="h-9 w-9 rounded-xl"
+              textClassName="text-lg"
+            />
           ) : (
             <DoorOpen className="h-6 w-6 text-primary" />
           )}
-          <span className="text-lg font-bold">
-            {convexOrg?.name ?? "RoomBook"}
-          </span>
+          {(convexOrg?.logoUrl || isCustomDomain || convexOrg?.name) && (
+            <span className="text-lg font-bold text-[#172033]">
+              {convexOrg?.name ?? "RoomBook"}
+            </span>
+          )}
         </Link>
       </div>
 

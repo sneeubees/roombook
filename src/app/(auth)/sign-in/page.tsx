@@ -5,7 +5,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCustomDomain } from "@/hooks/use-custom-domain";
-import { DoorOpen } from "lucide-react";
+import { RoomBookLogo } from "@/components/brand/roombook-logo";
 import {
   Card,
   CardContent,
@@ -56,10 +56,7 @@ export default function SignInPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 gap-6">
       {!isCustomDomain && (
-        <Link href="/" className="flex items-center gap-2">
-          <DoorOpen className="h-7 w-7 text-primary" />
-          <span className="text-2xl font-bold">RoomBook</span>
-        </Link>
+        <RoomBookLogo href="/" />
       )}
       <Card className="w-full max-w-md">
         <CardHeader>
