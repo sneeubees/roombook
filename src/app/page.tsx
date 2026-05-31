@@ -183,10 +183,12 @@ export default function LandingPage() {
             Room booking made simple for{" "}
             <span className="text-primary">medical practices</span>
           </h1>
-          <p className="mx-auto mt-8 max-w-2xl text-pretty text-lg font-medium leading-8 text-slate-700 sm:text-xl sm:leading-9">
-            Let your bookers book rooms, track usage, and receive automated
-            invoices. Full reporting and waitlist notifications included.
-          </p>
+          <div className="mx-auto mt-8 max-w-3xl rounded-2xl border border-white/70 bg-white/55 px-6 py-4 shadow-[0_18px_50px_rgba(15,23,42,0.10)] backdrop-blur-md sm:px-8">
+            <p className="text-pretty text-lg font-medium leading-8 text-slate-800 sm:text-xl sm:leading-9">
+              Let your bookers book rooms, track usage, and receive automated
+              invoices. Full reporting and waitlist notifications included.
+            </p>
+          </div>
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
               href="/sign-up"
