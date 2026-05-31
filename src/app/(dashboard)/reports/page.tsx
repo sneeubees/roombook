@@ -37,7 +37,7 @@ import {
 } from "date-fns";
 
 const COLORS = [
-  "#2563eb",
+  "#059669",
   "#16a34a",
   "#dc2626",
   "#9333ea",
@@ -241,7 +241,7 @@ export default function ReportsPage() {
                 <XAxis dataKey="name" />
                 <YAxis unit="%" />
                 <Tooltip formatter={(value) => `${value}%`} />
-                <Bar dataKey="occupancy" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="occupancy" fill="#059669" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </CardContent>
