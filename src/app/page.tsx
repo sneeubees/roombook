@@ -261,7 +261,7 @@ export default function LandingPage() {
             Modern room management for{" "}
             <span className="text-primary">medical practices</span>
           </h1>
-          <p className="mx-auto mt-8 max-w-3xl text-pretty text-lg font-bold leading-8 text-slate-900 sm:text-xl sm:leading-9">
+          <p className="mx-auto mt-8 max-w-3xl text-pretty text-lg font-semibold leading-8 text-slate-900 sm:text-xl sm:leading-9">
             Manage room bookings, usage tracking, and invoicing from one
             platform
           </p>
