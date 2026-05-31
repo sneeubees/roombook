@@ -144,8 +144,8 @@ export default function LandingPage() {
             <DropdownMenu>
               <DropdownMenuTrigger
                 className={
-                  buttonVariants({ variant: "outline", size: "icon-sm" }) +
-                  " border-border/80 bg-white/80 shadow-sm"
+                  buttonVariants({ variant: "ghost", size: "icon-sm" }) +
+                  " bg-transparent shadow-none hover:bg-transparent"
                 }
                 aria-label="Open menu"
               >
@@ -204,9 +204,20 @@ export default function LandingPage() {
           </div>
           <div className="hidden items-center gap-3 sm:flex">
             {isAuthenticated ? (
-              <Link href="/dashboard" className={buttonVariants()}>
-                Dashboard
-              </Link>
+              <>
+                <Link href="/dashboard" className={buttonVariants()}>
+                  Dashboard
+                </Link>
+                <div className="flex items-center gap-1 text-sm font-medium text-muted-foreground">
+                  <Link href="/sign-in" className="hover:text-foreground">
+                    Login
+                  </Link>
+                  <span>/</span>
+                  <Link href="/sign-up" className="hover:text-foreground">
+                    Register
+                  </Link>
+                </div>
+              </>
             ) : (
               <>
                 <Link
@@ -250,9 +261,9 @@ export default function LandingPage() {
             Modern room management for{" "}
             <span className="text-primary">medical practices</span>
           </h1>
-          <p className="mx-auto mt-8 max-w-2xl text-pretty text-lg font-medium leading-8 text-slate-800 sm:text-xl sm:leading-9">
-            Let your bookers book rooms, track usage, and receive automated
-            invoices. Full reporting and waitlist notifications included.
+          <p className="mx-auto mt-8 max-w-3xl text-pretty text-lg font-bold leading-8 text-slate-900 sm:text-xl sm:leading-9">
+            Manage room bookings, usage tracking, and invoicing from one
+            platform
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
