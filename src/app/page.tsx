@@ -245,7 +245,7 @@ export default function LandingPage() {
             Room scheduling, billing, and reporting
           </div>
           <h1 className="mx-auto max-w-5xl text-balance font-heading text-5xl font-bold leading-[1.02] text-foreground sm:text-6xl lg:text-7xl">
-            Room booking made simple for{" "}
+            Modern room management for{" "}
             <span className="text-primary">medical practices</span>
           </h1>
           <p className="mx-auto mt-8 max-w-2xl text-pretty text-lg font-medium leading-8 text-slate-800 sm:text-xl sm:leading-9">
