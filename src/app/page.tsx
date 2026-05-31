@@ -169,7 +169,7 @@ export default function LandingPage() {
       <section className="relative flex-1 overflow-hidden bg-[linear-gradient(180deg,#ffffff_0%,#ecfdf5_48%,#ecfeff_100%)]">
         <div
           className="absolute inset-0 bg-cover bg-center opacity-70"
-          style={{ backgroundImage: "url('/hero-medical-practice-bg.png')" }}
+          style={{ backgroundImage: "url('/hero-medical-practice-bg.webp')" }}
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(255_255_255_/_0.50)_0%,rgb(255_255_255_/_0.42)_48%,rgb(236_254_255_/_0.62)_100%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgb(5_150_105_/_0.18),transparent_32%),radial-gradient(circle_at_top_right,rgb(20_184_166_/_0.14),transparent_30%)]" />
