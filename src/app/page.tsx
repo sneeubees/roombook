@@ -138,8 +138,8 @@ export default function LandingPage() {
   // Default RoomBook landing (main domain only).
   return (
     <div className="flex min-h-screen flex-col bg-background">
-      <header className="sticky top-0 z-50 border-b border-border/70 bg-white/90 backdrop-blur-xl">
-        <div className="container mx-auto flex items-center justify-between px-6 py-4">
+      <header className="sticky top-0 z-50">
+        <div className="flex w-full items-center justify-between border-b border-white/70 bg-white/75 px-6 py-4 shadow-[0_10px_30px_rgba(15,23,42,0.08)] backdrop-blur-xl">
           <div className="flex items-center gap-2">
             <DropdownMenu>
               <DropdownMenuTrigger
