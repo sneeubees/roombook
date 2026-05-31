@@ -22,6 +22,7 @@ import {
   Users,
   Clock,
   TrendingUp,
+  LayoutDashboard,
 } from "lucide-react";
 
 const features = [
@@ -140,7 +141,6 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-border/70 bg-white/90 backdrop-blur-xl">
         <div className="container mx-auto flex items-center justify-between px-6 py-4">
           <div className="flex items-center gap-2">
-            <RoomBookLogo />
             <DropdownMenu>
               <DropdownMenuTrigger
                 className={
@@ -156,40 +156,51 @@ export default function LandingPage() {
                 sideOffset={8}
                 className="w-56 p-2"
               >
-                {isAuthenticated ? (
+                <div className="flex flex-col gap-1">
                   <Link
                     href="/dashboard"
                     className={
-                      buttonVariants({ size: "lg" }) +
-                      " h-10 w-full justify-center"
+                      buttonVariants({ variant: "ghost" }) +
+                      " h-10 w-full justify-start gap-2 px-3"
                     }
                   >
+                    <LayoutDashboard className="h-4 w-4 text-primary" />
                     Dashboard
                   </Link>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    <Link
-                      href="/sign-up"
-                      className={
-                        buttonVariants({ size: "lg" }) +
-                        " h-10 w-full justify-center shadow-lg shadow-primary/20"
-                      }
-                    >
-                      Register Your Practice
-                    </Link>
-                    <Link
-                      href="/sign-in"
-                      className={
-                        buttonVariants({ size: "lg", variant: "outline" }) +
-                        " h-10 w-full justify-center bg-white"
-                      }
-                    >
-                      Sign In
-                    </Link>
-                  </div>
-                )}
+                  <Link
+                    href="/calendar"
+                    className={
+                      buttonVariants({ variant: "ghost" }) +
+                      " h-10 w-full justify-start gap-2 px-3"
+                    }
+                  >
+                    <CalendarDays className="h-4 w-4 text-primary" />
+                    Calendar
+                  </Link>
+                  <Link
+                    href="/invoices"
+                    className={
+                      buttonVariants({ variant: "ghost" }) +
+                      " h-10 w-full justify-start gap-2 px-3"
+                    }
+                  >
+                    <FileText className="h-4 w-4 text-primary" />
+                    Invoices
+                  </Link>
+                  <Link
+                    href="/reports"
+                    className={
+                      buttonVariants({ variant: "ghost" }) +
+                      " h-10 w-full justify-start gap-2 px-3"
+                    }
+                  >
+                    <BarChart3 className="h-4 w-4 text-primary" />
+                    Reports
+                  </Link>
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
+            <RoomBookLogo />
           </div>
           <div className="hidden items-center gap-3 sm:flex">
             {isAuthenticated ? (
