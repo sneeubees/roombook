@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
@@ -86,9 +87,8 @@ export default function SignInPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
+              <PasswordInput
                 id="password"
-                type="password"
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -98,14 +98,6 @@ export default function SignInPage() {
             <Button type="submit" disabled={isSubmitting} className="w-full">
               {isSubmitting ? "Signing in…" : "Sign in"}
             </Button>
-            {!isCustomDomain && (
-              <p className="text-sm text-muted-foreground text-center">
-                Don&apos;t have an account?{" "}
-                <Link href="/sign-up" className="underline">
-                  Sign up
-                </Link>
-              </p>
-            )}
           </form>
         </CardContent>
       </Card>

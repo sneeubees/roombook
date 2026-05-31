@@ -19,7 +19,13 @@ const isPublicRoute = createRouteMatcher([
 
 const isAuthPage = createRouteMatcher(["/sign-in", "/sign-up"]);
 
-const MAIN_DOMAINS = ["roombook.co.za", "www.roombook.co.za"];
+const MAIN_DOMAINS = [
+  "roombook.co.za",
+  "www.roombook.co.za",
+  "localhost",
+  "127.0.0.1",
+  "::1",
+];
 
 export default convexAuthNextjsMiddleware(async (request, { convexAuth }) => {
   const authed = await convexAuth.isAuthenticated();

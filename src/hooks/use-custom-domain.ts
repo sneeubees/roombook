@@ -2,7 +2,13 @@
 
 import { useMemo } from "react";
 
-const MAIN_DOMAINS = ["roombook.co.za", "www.roombook.co.za", "localhost"];
+const MAIN_DOMAINS = [
+  "roombook.co.za",
+  "www.roombook.co.za",
+  "localhost",
+  "127.0.0.1",
+  "::1",
+];
 
 export function useCustomDomain() {
   const customDomain = useMemo(() => {

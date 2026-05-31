@@ -173,11 +173,16 @@ export default function LandingPage() {
       </header>
 
       <section className="relative flex-1 overflow-hidden bg-[linear-gradient(180deg,#ffffff_0%,#eff6ff_48%,#ecfeff_100%)]">
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-70"
+          style={{ backgroundImage: "url('/hero-medical-practice-bg.png')" }}
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(255_255_255_/_0.50)_0%,rgb(255_255_255_/_0.42)_48%,rgb(236_254_255_/_0.62)_100%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgb(37_99_235_/_0.16),transparent_32%),radial-gradient(circle_at_top_right,rgb(20_184_166_/_0.14),transparent_30%)]" />
         <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent" />
 
         <div className="container relative mx-auto px-6 pb-36 pt-24 text-center sm:pb-40 sm:pt-28 lg:pb-44 lg:pt-32">
-          <div className="mx-auto mb-7 inline-flex items-center rounded-full border border-primary/15 bg-white/85 px-3 py-1 text-xs font-bold uppercase text-primary shadow-sm shadow-slate-900/5">
+          <div className="mx-auto mb-7 inline-flex items-center rounded-full bg-[#2563EB] px-4 py-1.5 text-xs font-bold text-white shadow-sm shadow-blue-600/20">
             Room scheduling, billing, and reporting
           </div>
           <h1 className="mx-auto max-w-5xl text-balance font-heading text-5xl font-bold leading-[1.02] text-foreground sm:text-6xl lg:text-7xl">
