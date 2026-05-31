@@ -1,13 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
 import { useConvexAuth, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import { RoomBookLogo } from "@/components/brand/roombook-logo";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import { useCustomDomain } from "@/hooks/use-custom-domain";
 import { TIERS, formatZAR } from "@/lib/tiers";
-import { ArrowRight, Check, X } from "lucide-react";
+import { ArrowRight, Check, Menu, X } from "lucide-react";
 import {
   CalendarDays,
   DoorOpen,
@@ -73,6 +81,7 @@ const roomAvailability = [
 export default function LandingPage() {
   const { isAuthenticated } = useConvexAuth();
   const { isCustomDomain, customDomain } = useCustomDomain();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Look up the org attached to this custom domain (if any) so we can show
   // its name on the landing.
@@ -135,7 +144,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 border-b border-border/70 bg-white/90 backdrop-blur-xl">
         <div className="container mx-auto flex items-center justify-between px-6 py-4">
           <RoomBookLogo />
-          <div className="flex items-center gap-3">
+          <div className="hidden items-center gap-3 sm:flex">
             {isAuthenticated ? (
               <Link href="/dashboard" className={buttonVariants()}>
                 Dashboard
@@ -163,8 +172,64 @@ export default function LandingPage() {
               </>
             )}
           </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-lg"
+            className="border-border/80 bg-white/80 shadow-sm sm:hidden"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Open menu"
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
         </div>
       </header>
+
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="right" className="w-[min(22rem,calc(100vw-2rem))] p-0">
+          <SheetHeader className="border-b border-border/70 p-6">
+            <RoomBookLogo />
+            <SheetTitle className="sr-only">RoomBook menu</SheetTitle>
+            <SheetDescription className="sr-only">
+              Navigation actions for RoomBook
+            </SheetDescription>
+          </SheetHeader>
+          <div className="flex flex-col gap-3 p-6">
+            {isAuthenticated ? (
+              <Link
+                href="/dashboard"
+                onClick={() => setMobileMenuOpen(false)}
+                className={buttonVariants({ size: "lg" }) + " h-11 w-full"}
+              >
+                Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  href="/sign-up"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={
+                    buttonVariants({ size: "lg" }) +
+                    " h-11 w-full shadow-lg shadow-primary/20"
+                  }
+                >
+                  Register Your Practice
+                </Link>
+                <Link
+                  href="/sign-in"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={
+                    buttonVariants({ size: "lg", variant: "outline" }) +
+                    " h-11 w-full bg-white"
+                  }
+                >
+                  Sign In
+                </Link>
+              </>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       <section className="relative flex-1 overflow-hidden bg-[linear-gradient(180deg,#ffffff_0%,#ecfdf5_48%,#ecfeff_100%)]">
         <div
