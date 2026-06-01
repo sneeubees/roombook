@@ -540,8 +540,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <footer className="bg-white py-10">
-        <div className="container mx-auto px-6 text-center text-sm text-muted-foreground">
+      <footer className="bg-primary py-10 text-primary-foreground">
+        <div className="container mx-auto px-6 text-center text-sm font-medium">
           &copy; {new Date().getFullYear()} RoomBook. All rights reserved.
         </div>
       </footer>
