@@ -21,6 +21,21 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import Link from "next/link";
 
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function authErrorMessage(err: unknown, fallback: string) {
+  if (!(err instanceof Error)) return fallback;
+  if (
+    err.message.includes("Invalid") ||
+    err.message.includes("Could not verify code")
+  ) {
+    return "That code didn't work. Request a new code and try again.";
+  }
+  return err.message;
+}
+
 export default function InvitePage() {
   const params = useParams();
   const router = useRouter();
@@ -126,6 +141,8 @@ export default function InvitePage() {
     );
   }
 
+  const invitationEmail = normalizeEmail(invitation.email);
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setIsSubmitting(true);
@@ -137,7 +154,7 @@ export default function InvitePage() {
           return;
         }
         await signIn("password", {
-          email: invitation!.email,
+          email: invitationEmail,
           password,
           name: fullName,
           flow: "signUp",
@@ -146,25 +163,19 @@ export default function InvitePage() {
         setMode("verify");
       } else if (mode === "verify") {
         await signIn("password", {
-          email: invitation!.email,
+          email: invitationEmail,
           code,
           flow: "email-verification",
         });
       } else {
         await signIn("password", {
-          email: invitation!.email,
+          email: invitationEmail,
           password,
           flow: "signIn",
         });
       }
     } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message.includes("Invalid")
-            ? "That didn't work. Check your email / code and try again."
-            : err.message
-          : "Failed"
-      );
+      toast.error(authErrorMessage(err, "Failed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -172,9 +183,17 @@ export default function InvitePage() {
 
   async function resendCode() {
     if (!invitation) return;
+    if (!password) {
+      toast.error("Go back and enter your password before requesting a new code.");
+      return;
+    }
     setIsSubmitting(true);
     try {
-      await signIn("resend-otp", { email: invitation.email });
+      await signIn("password", {
+        email: invitationEmail,
+        password,
+        flow: "signIn",
+      });
       toast.success("A new code is on its way.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not resend");
@@ -194,7 +213,7 @@ export default function InvitePage() {
             {mode === "verify" ? (
               <>
                 We&apos;ve sent a 6-digit code to{" "}
-                <strong>{invitation.email}</strong>.
+                <strong>{invitationEmail}</strong>.
               </>
             ) : (
               <>
@@ -208,7 +227,7 @@ export default function InvitePage() {
             {mode !== "verify" && (
               <div className="space-y-2">
                 <Label>Email</Label>
-                <Input value={invitation.email} disabled />
+                <Input value={invitationEmail} disabled />
               </div>
             )}
             {mode === "signup" && (

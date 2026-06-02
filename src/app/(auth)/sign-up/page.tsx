@@ -18,6 +18,21 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
+function normalizeEmail(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function authErrorMessage(err: unknown, fallback: string) {
+  if (!(err instanceof Error)) return fallback;
+  if (
+    err.message.includes("Invalid") ||
+    err.message.includes("Could not verify code")
+  ) {
+    return "That code didn't work. Request a new code and try again.";
+  }
+  return err.message;
+}
+
 export default function SignUpPage() {
   const { signIn } = useAuthActions();
   const router = useRouter();
@@ -40,8 +55,10 @@ export default function SignUpPage() {
     }
     setIsSubmitting(true);
     try {
+      const normalizedEmail = normalizeEmail(email);
+      setEmail(normalizedEmail);
       await signIn("password", {
-        email: email.trim().toLowerCase(),
+        email: normalizedEmail,
         password,
         name: fullName,
         flow: "signUp",
@@ -60,19 +77,13 @@ export default function SignUpPage() {
     setIsSubmitting(true);
     try {
       await signIn("password", {
-        email: email.trim().toLowerCase(),
+        email: normalizeEmail(email),
         code,
         flow: "email-verification",
       });
       router.push(`/onboarding${tierQuery}`);
     } catch (err) {
-      toast.error(
-        err instanceof Error
-          ? err.message.includes("Invalid")
-            ? "That code didn't work. Check your email and try again."
-            : err.message
-          : "Verification failed"
-      );
+      toast.error(authErrorMessage(err, "Verification failed"));
     } finally {
       setIsSubmitting(false);
     }
@@ -80,9 +91,17 @@ export default function SignUpPage() {
 
   async function resendCode() {
     if (!email) return;
+    if (!password) {
+      toast.error("Go back and enter your password before requesting a new code.");
+      return;
+    }
     setIsSubmitting(true);
     try {
-      await signIn("resend-otp", { email: email.trim().toLowerCase() });
+      await signIn("password", {
+        email: normalizeEmail(email),
+        password,
+        flow: "signIn",
+      });
       toast.success("A new code is on its way.");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not resend");
