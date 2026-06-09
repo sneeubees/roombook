@@ -62,17 +62,37 @@ type SlotType = "full_day" | "am" | "pm" | "session";
 // starts at 09:05 still bills exactly one hour at the hourly rate.
 const BOOKING_STEP_MIN = 5;
 
+function parseHHMM(s: string): number {
+  const [h, m] = s.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
 function generateTimeOptions(start?: string, end?: string) {
   const options: { value: string; label: string }[] = [];
-  const startHour = start ? parseInt(start.split(":")[0]) : 0;
-  const endHour = end ? parseInt(end.split(":")[0]) : 24;
-  for (let h = startHour; h <= endHour; h++) {
-    for (let m = 0; m < 60; m += BOOKING_STEP_MIN) {
-      if (h === endHour && m > 0) break;
-      const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-      options.push({ value: val, label: val });
-    }
+  const startMin = start ? parseHHMM(start) : 0;
+  const endMin = end ? parseHHMM(end) : 24 * 60;
+  // Round the iteration start up to the next step so values stay clean
+  // even when availabilityStart isn't on a 5-minute boundary.
+  const first =
+    Math.ceil(startMin / BOOKING_STEP_MIN) * BOOKING_STEP_MIN;
+  // Always include the exact endpoints so the user can pick the full
+  // availability window even if it doesn't fall on the step grid.
+  const seen = new Set<number>();
+  const pushAt = (mins: number) => {
+    if (seen.has(mins)) return;
+    seen.add(mins);
+    const h = Math.floor(mins / 60);
+    const m = mins % 60;
+    const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    options.push({ value: val, label: val });
+  };
+  pushAt(startMin);
+  for (let t = first; t < endMin; t += BOOKING_STEP_MIN) {
+    if (t <= startMin) continue;
+    pushAt(t);
   }
+  pushAt(endMin);
+  options.sort((a, b) => parseHHMM(a.value) - parseHHMM(b.value));
   return options;
 }
 
@@ -272,8 +292,10 @@ export default function CalendarPage() {
   // used to disable conflicting time picks in the Book Room dialog.
   const dialogBusyRanges = useMemo(() => {
     if (!selectedDate || !selectedRoom || !bookings || !selectedRoomObj) return [];
-    const rs = parseInt((selectedRoomObj.availabilityStart ?? "08:00").split(":")[0]) * 60;
-    const re = parseInt((selectedRoomObj.availabilityEnd ?? "18:00").split(":")[0]) * 60;
+    // Use the FULL HH:MM, not just the hour — rooms can now have custom
+    // start / end minutes (e.g. 07:15 to 17:45).
+    const rs = parseHHMM(selectedRoomObj.availabilityStart ?? "08:00");
+    const re = parseHHMM(selectedRoomObj.availabilityEnd ?? "18:00");
     const mid = Math.floor((rs + re) / 2);
     const ranges: { start: number; end: number }[] = [];
     bookings

@@ -28,11 +28,6 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 
-const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => {
-  const h = String(i).padStart(2, "0");
-  return { value: `${h}:00`, label: `${h}:00` };
-});
-
 export default function EditRoomPage() {
   const params = useParams();
   const router = useRouter();
@@ -296,25 +291,21 @@ export default function EditRoomPage() {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">From</Label>
-                      <Select value={availabilityStart} onValueChange={(v) => v && setAvailabilityStart(v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {HOUR_OPTIONS.map((h) => (
-                            <SelectItem key={h.value} value={h.value}>{h.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Input
+                        type="time"
+                        step={300}
+                        value={availabilityStart}
+                        onChange={(e) => setAvailabilityStart(e.target.value)}
+                      />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs text-muted-foreground">Until</Label>
-                      <Select value={availabilityEnd} onValueChange={(v) => v && setAvailabilityEnd(v)}>
-                        <SelectTrigger><SelectValue /></SelectTrigger>
-                        <SelectContent>
-                          {HOUR_OPTIONS.map((h) => (
-                            <SelectItem key={h.value} value={h.value}>{h.label}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Input
+                        type="time"
+                        step={300}
+                        value={availabilityEnd}
+                        onChange={(e) => setAvailabilityEnd(e.target.value)}
+                      />
                     </div>
                   </div>
                 )}
