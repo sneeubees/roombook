@@ -499,6 +499,7 @@ export default function BookingsPage() {
                       <Label>Start Time</Label>
                       <Input
                         type="time"
+                        step={300}
                         value={editStartTime}
                         onChange={(e) => setEditStartTime(e.target.value)}
                       />
@@ -507,6 +508,7 @@ export default function BookingsPage() {
                       <Label>End Time</Label>
                       <Input
                         type="time"
+                        step={300}
                         value={editEndTime}
                         onChange={(e) => setEditEndTime(e.target.value)}
                       />

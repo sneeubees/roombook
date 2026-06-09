@@ -57,12 +57,17 @@ import { UnverifiedDomainsBanner } from "@/components/unverified-domains-banner"
 type SlotType = "full_day" | "am" | "pm" | "session";
 
 // Generate time options in 30-min increments
+// Booking time picker step in minutes. Bookings can start on any 5-minute
+// boundary; billing is duration-proportional so a 60-minute session that
+// starts at 09:05 still bills exactly one hour at the hourly rate.
+const BOOKING_STEP_MIN = 5;
+
 function generateTimeOptions(start?: string, end?: string) {
   const options: { value: string; label: string }[] = [];
   const startHour = start ? parseInt(start.split(":")[0]) : 0;
   const endHour = end ? parseInt(end.split(":")[0]) : 24;
   for (let h = startHour; h <= endHour; h++) {
-    for (const m of [0, 30]) {
+    for (let m = 0; m < 60; m += BOOKING_STEP_MIN) {
       if (h === endHour && m > 0) break;
       const val = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
       options.push({ value: val, label: val });
@@ -1549,6 +1554,7 @@ export default function CalendarPage() {
                       <Label>Start Time</Label>
                       <Input
                         type="time"
+                        step={BOOKING_STEP_MIN * 60}
                         value={updateStartTime}
                         onChange={(e) => setUpdateStartTime(e.target.value)}
                         disabled={isPastBooking}
@@ -1558,6 +1564,7 @@ export default function CalendarPage() {
                       <Label>End Time</Label>
                       <Input
                         type="time"
+                        step={BOOKING_STEP_MIN * 60}
                         value={updateEndTime}
                         onChange={(e) => setUpdateEndTime(e.target.value)}
                         disabled={isPastBooking}
