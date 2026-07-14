@@ -10,4 +10,11 @@ crons.daily(
   internal.invoiceGeneration.generateInvoices
 );
 
+// Suspend organisations whose Paystack payment-failure grace window has passed.
+crons.daily(
+  "paystack-dunning-sweep",
+  { hourUTC: 1, minuteUTC: 0 },
+  internal.paystackInternal.dunningSweep
+);
+
 export default crons;

@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useConvexAuth, useMutation, useQuery } from "convex/react";
+import { useAction, useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "../../../convex/_generated/api";
 import { TIERS, formatZAR, type SubscriptionTier } from "@/lib/tiers";
 import {
@@ -27,6 +27,7 @@ export default function SubscribePage() {
   const requestSubscription = useMutation(
     api.organizations.requestSubscription
   );
+  const startCheckout = useAction(api.paystack.startCheckout);
 
   const initialTier = (searchParams.get("tier") as SubscriptionTier) ?? "professional";
   const [selected, setSelected] = useState<SubscriptionTier>(
@@ -36,6 +37,7 @@ export default function SubscribePage() {
   const [notes, setNotes] = useState("");
   const [reference, setReference] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   // Generate a payment reference once we know the org name + tier
   useEffect(() => {
@@ -183,6 +185,44 @@ export default function SubscribePage() {
                     <strong>{orgData.org.name}</strong>
                   </p>
                 )}
+              </div>
+
+              {/* Pay with card — Paystack (primary) */}
+              <div className="space-y-3">
+                <Button
+                  className="w-full"
+                  disabled={isRedirecting}
+                  onClick={async () => {
+                    if (!orgData?.org) {
+                      toast.error("No organisation found for your account");
+                      return;
+                    }
+                    setIsRedirecting(true);
+                    try {
+                      const { authorizationUrl } = await startCheckout({
+                        orgId: orgData.org._id,
+                        tier: selected,
+                      });
+                      window.location.href = authorizationUrl;
+                    } catch (err) {
+                      toast.error(
+                        err instanceof Error
+                          ? err.message
+                          : "Could not start card checkout"
+                      );
+                      setIsRedirecting(false);
+                    }
+                  }}
+                >
+                  {isRedirecting
+                    ? "Redirecting to Paystack…"
+                    : `Pay ${formatZAR(tier.monthlyPriceZAR)}/mo with card`}
+                </Button>
+                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                  <div className="h-px flex-1 bg-border" />
+                  or pay by EFT
+                  <div className="h-px flex-1 bg-border" />
+                </div>
               </div>
 
               {/* EFT instructions */}

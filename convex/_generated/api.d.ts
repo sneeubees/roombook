@@ -25,6 +25,8 @@ import type * as invoiceGenerationHelpers from "../invoiceGenerationHelpers.js";
 import type * as invoices from "../invoices.js";
 import type * as notifications from "../notifications.js";
 import type * as organizations from "../organizations.js";
+import type * as paystack from "../paystack.js";
+import type * as paystackInternal from "../paystackInternal.js";
 import type * as roomBlocks from "../roomBlocks.js";
 import type * as rooms from "../rooms.js";
 import type * as users from "../users.js";
@@ -54,6 +56,8 @@ declare const fullApi: ApiFromModules<{
   invoices: typeof invoices;
   notifications: typeof notifications;
   organizations: typeof organizations;
+  paystack: typeof paystack;
+  paystackInternal: typeof paystackInternal;
   roomBlocks: typeof roomBlocks;
   rooms: typeof rooms;
   users: typeof users;

@@ -72,11 +72,39 @@ export default defineSchema({
     // The Convex Auth userId of the owner (one per org).
     ownerUserId: v.optional(v.id("users")),
     // Subscription / payment workflow.
-    paymentMethod: v.optional(v.literal("eft")),
+    paymentMethod: v.optional(v.union(v.literal("eft"), v.literal("paystack"))),
     paymentReference: v.optional(v.string()),
     paymentRequestedAt: v.optional(v.number()),
     paymentNotes: v.optional(v.string()),
-  }).index("by_slug", ["slug"]),
+    // Paystack subscription billing (routed via the shared Webjockeys gateway).
+    paystackCustomerCode: v.optional(v.string()),
+    paystackSubscriptionCode: v.optional(v.string()),
+    paystackEmailToken: v.optional(v.string()),
+    paystackPlanCode: v.optional(v.string()),
+    subscriptionStatus: v.optional(
+      v.union(
+        v.literal("active"),
+        v.literal("non-renewing"),
+        v.literal("attention"),
+        v.literal("cancelled"),
+        v.literal("none")
+      )
+    ),
+    currentPeriodEnd: v.optional(v.number()),
+    graceUntil: v.optional(v.number()),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_paystack_customer", ["paystackCustomerCode"])
+    .index("by_paystack_subscription", ["paystackSubscriptionCode"]),
+
+  // Paystack webhook event log — idempotency (Paystack retries) + audit.
+  paystackEvents: defineTable({
+    dedupeKey: v.string(),
+    eventType: v.string(),
+    orgId: v.optional(v.id("organizations")),
+    payload: v.any(),
+    processedAt: v.number(),
+  }).index("by_dedupeKey", ["dedupeKey"]),
 
   // Membership — links a user to an organisation with a role.
   memberships: defineTable({
