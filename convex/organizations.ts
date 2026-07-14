@@ -239,6 +239,24 @@ export const suspend = mutation({
   },
 });
 
+// Super-admin-only: change an org's subscription tier from the admin console.
+// Mirrors approve/suspend's requireSuperAdmin gate. Note this only flips the
+// stored tier — it does NOT touch any live Paystack subscription.
+export const setTier = mutation({
+  args: {
+    orgId: v.id("organizations"),
+    tier: v.union(
+      v.literal("basic"),
+      v.literal("professional"),
+      v.literal("enterprise")
+    ),
+  },
+  handler: async (ctx, args) => {
+    await requireSuperAdmin(ctx);
+    await ctx.db.patch(args.orgId, { subscriptionTier: args.tier });
+  },
+});
+
 // Remove a member from an organisation. Owner membership cannot be removed
 // unless the org is being deleted.
 export const removeMember = mutation({

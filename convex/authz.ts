@@ -153,3 +153,12 @@ export const assertOrgAccess = internalQuery({
     return null;
   },
 });
+
+/** Internal gate for super-admin-only `action`s (called via ctx.runQuery). */
+export const assertSuperAdmin = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    await requireSuperAdmin(ctx);
+    return null;
+  },
+});

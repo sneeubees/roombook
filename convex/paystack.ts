@@ -9,19 +9,6 @@ const tierValidator = v.union(
   v.literal("enterprise")
 );
 
-function planCodeForTier(tier: string): string | undefined {
-  switch (tier) {
-    case "basic":
-      return process.env.PAYSTACK_PLAN_BASIC;
-    case "professional":
-      return process.env.PAYSTACK_PLAN_PROFESSIONAL;
-    case "enterprise":
-      return process.env.PAYSTACK_PLAN_ENTERPRISE;
-    default:
-      return undefined;
-  }
-}
-
 // Begin a card subscription. Owner-only. Amount/plan are resolved server-side
 // from the tier — never trusted from the client. Returns the Paystack-hosted
 // checkout URL for the client to redirect to. Activation is authoritative via
@@ -39,9 +26,17 @@ export const startCheckout = action({
     });
     if (!info) throw new Error("No billing email found for this organisation");
 
-    const planCode = planCodeForTier(args.tier);
+    const pricing = await ctx.runQuery(internal.pricing.currentInternal, {});
+    const planCode =
+      args.tier === "basic"
+        ? pricing.basicPlanCode
+        : args.tier === "professional"
+          ? pricing.professionalPlanCode
+          : pricing.enterprisePlanCode;
     if (!planCode) {
-      throw new Error(`No Paystack plan configured for the ${args.tier} tier`);
+      throw new Error(
+        `No Paystack plan configured for the ${args.tier} tier. A super admin can create one at /admin/pricing.`
+      );
     }
 
     let customerCode = info.paystackCustomerCode;
@@ -145,5 +140,32 @@ export const provisionPlans = internalAction({
       result[plan.tier] = plan_code;
     }
     return result;
+  },
+});
+
+// Super admin — mint a fresh Paystack plan for a tier at the given amount and
+// store its code. Powers the "recreate package" buttons on /admin/pricing.
+// Paystack plan amounts are immutable, so changing a tier's price needs a new
+// plan; existing subscribers keep their old plan until they resubscribe.
+export const createTierPlan = action({
+  args: { tier: tierValidator, amountCents: v.number() },
+  handler: async (ctx, args): Promise<{ ok: true; planCode: string }> => {
+    await ctx.runQuery(internal.authz.assertSuperAdmin, {});
+    if (args.amountCents <= 0) throw new Error("Amount must be positive");
+    const label =
+      args.tier === "basic"
+        ? "Starter"
+        : args.tier === "professional"
+          ? "Professional"
+          : "Enterprise";
+    const { plan_code } = await paystack.createPlan({
+      name: `RoomBook ${label} (R${(args.amountCents / 100).toFixed(2)})`,
+      amount: args.amountCents,
+    });
+    await ctx.runMutation(internal.pricing.setPlanCode, {
+      tier: args.tier,
+      planCode: plan_code,
+    });
+    return { ok: true, planCode: plan_code };
   },
 });

@@ -106,6 +106,20 @@ export default defineSchema({
     processedAt: v.number(),
   }).index("by_dedupeKey", ["dedupeKey"]),
 
+  // Super-admin-editable pricing (singleton row). Tier monthly prices (cents)
+  // + Paystack plan codes; seeded from src/lib/tiers.ts defaults on first read.
+  pricingConfig: defineTable({
+    singleton: v.literal("only"),
+    basicMonthlyCents: v.number(),
+    professionalMonthlyCents: v.number(),
+    enterpriseMonthlyCents: v.number(),
+    basicPlanCode: v.optional(v.string()),
+    professionalPlanCode: v.optional(v.string()),
+    enterprisePlanCode: v.optional(v.string()),
+    updatedAt: v.optional(v.number()),
+    updatedByUserId: v.optional(v.id("users")),
+  }).index("by_singleton", ["singleton"]),
+
   // Membership — links a user to an organisation with a role.
   memberships: defineTable({
     orgId: v.id("organizations"),
