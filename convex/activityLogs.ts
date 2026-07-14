@@ -1,6 +1,6 @@
 import { v } from "convex/values";
-import { internalMutation, mutation, query } from "./_generated/server";
-import { getAuthUserId } from "@convex-dev/auth/server";
+import { internalMutation, query } from "./_generated/server";
+import { requireStaff, requireSuperAdmin } from "./authz";
 
 /**
  * Internal — called from other mutations to record an activity event.
@@ -22,9 +22,14 @@ export const log = internalMutation({
   },
 });
 
-export const record = mutation({
+// Internal audit writer. Actor identity is supplied by the calling server
+// function (which derives it from the authenticated user) — never trusted from
+// a raw client, so audit entries can't be forged. `log` above is equivalent;
+// both are internal-only.
+export const record = internalMutation({
   args: {
     orgId: v.id("organizations"),
+    actorId: v.id("users"),
     actorName: v.string(),
     actorRole: v.string(),
     action: v.string(),
@@ -34,12 +39,7 @@ export const record = mutation({
     details: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
-    const actorId = await getAuthUserId(ctx);
-    if (!actorId) throw new Error("Not authenticated");
-    await ctx.db.insert("activityLogs", {
-      ...args,
-      actorId,
-    });
+    await ctx.db.insert("activityLogs", args);
   },
 });
 
@@ -49,6 +49,8 @@ export const listByOrg = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // The audit log is an owner/manager-only surface.
+    await requireStaff(ctx, args.orgId);
     const rows = await ctx.db
       .query("activityLogs")
       .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
@@ -61,6 +63,7 @@ export const listByOrg = query({
 export const listAll = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, args) => {
+    await requireSuperAdmin(ctx);
     const rows = await ctx.db
       .query("activityLogs")
       .order("desc")

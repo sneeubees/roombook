@@ -45,11 +45,12 @@ import { format } from "date-fns";
 import Link from "next/link";
 
 export default function InvoicesPage() {
-  const me = useQuery(api.users.currentUser);
   const { orgId, convexOrg } = useOrgData();
   const { isOwner } = useUserRole();
 
-  // For now, query all invoices by org. In production, filter by user for bookers
+  // `invoices.listByOrg` is now scoped server-side: staff/owner receive every
+  // invoice in the org, while a booker only ever receives their own. No
+  // client-side filtering (which assumed full-list access) is needed.
   const invoices = useQuery(
     api.invoices.listByOrg,
     orgId ? { orgId } : "skip"
@@ -112,9 +113,7 @@ export default function InvoicesPage() {
     return cu?.fullName || userId;
   }
 
-  const filteredInvoices = isOwner
-    ? invoices
-    : invoices?.filter((i) => i.userId === me?._id);
+  const filteredInvoices = invoices;
 
   return (
     <div className="space-y-6">

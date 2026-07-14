@@ -1,5 +1,6 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
+import { requireStaff } from "./authz";
 
 export const list = query({
   args: { orgId: v.id("organizations") },
@@ -57,6 +58,16 @@ export const create = mutation({
     cancellationDeadlineHours: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Only owner / manager / super admin may create rooms.
+    await requireStaff(ctx, args.orgId);
+
+    // Block writes for suspended orgs. Missing / pending_approval status is
+    // treated as active so existing live orgs aren't locked out.
+    const orgForStatus = await ctx.db.get(args.orgId);
+    if (orgForStatus?.status === "suspended") {
+      throw new Error("This organisation is suspended. Please contact support.");
+    }
+
     // Validate based on pricing mode
     if (args.pricingMode === "day_based") {
       if (!args.fullDayRate || !args.halfDayRate) {
@@ -117,6 +128,7 @@ export const remove = mutation({
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.id);
     if (!room) throw new Error("Room not found");
+    await requireStaff(ctx, room.orgId);
     if (room.deletedAt) return; // already removed
     if (room.isActive) {
       throw new Error(
@@ -151,6 +163,41 @@ export const update = mutation({
     cancellationDeadlineHours: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    const room = await ctx.db.get(args.id);
+    if (!room) throw new Error("Room not found");
+    await requireStaff(ctx, room.orgId);
+
+    // Reactivating a room re-enters it against the plan's active-room limit —
+    // otherwise deactivate → create → reactivate could exceed the tier cap.
+    // Deleted rooms can never be reactivated.
+    if (args.isActive === true && !room.isActive) {
+      if (room.deletedAt) {
+        throw new Error("A deleted room cannot be reactivated");
+      }
+      const org = await ctx.db.get(room.orgId);
+      const tier =
+        (org as { subscriptionTier?: string } | null)?.subscriptionTier ??
+        "basic";
+      const tierLimit = tier === "basic" ? 1 : 0; // 0 = unlimited
+      if (tierLimit > 0) {
+        const rooms = await ctx.db
+          .query("rooms")
+          .withIndex("by_org", (q) => q.eq("orgId", room.orgId))
+          .collect();
+        const activeCount = rooms.filter(
+          (r) =>
+            r.isActive &&
+            !(r as { deletedAt?: number }).deletedAt &&
+            r._id !== room._id
+        ).length;
+        if (activeCount >= tierLimit) {
+          throw new Error(
+            `Your current plan is limited to ${tierLimit} room${tierLimit === 1 ? "" : "s"}. Upgrade to add more.`
+          );
+        }
+      }
+    }
+
     const { id, ...updates } = args;
     const filteredUpdates = Object.fromEntries(
       Object.entries(updates).filter(([, value]) => value !== undefined)

@@ -111,7 +111,7 @@ export function FirstLoginModal({ open }: FirstLoginModalProps) {
                   id="first-org"
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}
-                  placeholder="e.g., PhysioCare Practice"
+                  placeholder="e.g., Wellness Studio"
                 />
               </div>
             </>

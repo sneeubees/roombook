@@ -715,13 +715,15 @@ function WhiteLabelSectionInner({ orgId }: { orgId?: any }) {
 
   async function handleRemove(domainId: string, domain: string) {
     try {
-      await removeDomain({ id: domainId as any });
-      // Remove from Nginx
+      // Tear down nginx FIRST — the provision route authorizes by looking the
+      // domain up in Convex (owner-only), so it must still exist there when we
+      // call it. Only then delete the Convex record.
       await fetch("/api/domains/provision", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ domain, action: "remove" }),
       });
+      await removeDomain({ id: domainId as any });
       toast.success("Domain removed");
     } catch (error) {
       toast.error("Failed to remove domain");

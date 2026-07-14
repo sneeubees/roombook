@@ -34,6 +34,14 @@ export const countUnread = query({
 export const markAsRead = mutation({
   args: { id: v.id("notifications") },
   handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx);
+    if (!userId) throw new Error("Not authenticated");
+    const notification = await ctx.db.get(args.id);
+    if (!notification) throw new Error("Notification not found");
+    // A user may only mark their OWN notifications read.
+    if (notification.userId !== userId) {
+      throw new Error("Not authorised to modify this notification");
+    }
     await ctx.db.patch(args.id, { isRead: true });
   },
 });

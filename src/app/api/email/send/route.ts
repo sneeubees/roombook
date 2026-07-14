@@ -15,7 +15,38 @@ type Attachment = {
   contentType: string;
 };
 
+// Constant-time string comparison — avoids leaking the secret via early exit.
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 export async function POST(request: Request) {
+  // This route is an internal mail relay, invoked server-to-server from Convex
+  // actions. It is NOT a public endpoint: require a shared secret so it can't
+  // be used as an open relay. The secret must be set (identically) in both the
+  // Convex deployment and the Next.js environment as INTERNAL_API_SECRET.
+  const expectedSecret = process.env.INTERNAL_API_SECRET;
+  if (!expectedSecret) {
+    console.error(
+      "[EMAIL API] INTERNAL_API_SECRET is not configured — refusing to send."
+    );
+    return new Response(
+      JSON.stringify({ error: "Email relay not configured" }),
+      { status: 503 }
+    );
+  }
+  const providedSecret = request.headers.get("x-internal-secret") ?? "";
+  if (!constantTimeEqual(providedSecret, expectedSecret)) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+    });
+  }
+
   try {
     const body = await request.json();
     const { type, data } = body;
@@ -76,7 +107,9 @@ export async function POST(request: Request) {
         let hasAttachment = false;
         if (data.invoiceId) {
           try {
-            const pdf = await buildInvoicePdf(data.invoiceId as Id<"invoices">);
+            const pdf = await buildInvoicePdf(data.invoiceId as Id<"invoices">, {
+              serverSecret: expectedSecret,
+            });
             if (pdf) {
               attachments = [
                 {

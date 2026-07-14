@@ -10,16 +10,16 @@ export async function GET(
 ) {
   const { token } = await params;
 
-  // Look up user by calendar token
-  const user = await convex.query(api.users.getByCalendarToken, { token });
-  if (!user) {
+  // Possession of the (secret) calendar token authorizes read access to that
+  // user's confirmed bookings — resolved entirely server-side. Returns null
+  // for an unknown token.
+  const bookings = await convex.query(
+    api.bookings.listConfirmedByCalendarToken,
+    { token }
+  );
+  if (bookings === null) {
     return new Response("Invalid calendar token", { status: 404 });
   }
-
-  // Get all confirmed bookings for this user
-  const bookings = await convex.query(api.bookings.listAllByUser, {
-    userId: user._id,
-  });
 
   const events: EventAttributes[] = [];
 

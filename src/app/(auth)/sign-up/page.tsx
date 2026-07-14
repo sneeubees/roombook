@@ -119,7 +119,7 @@ export default function SignUpPage() {
             <>
               <CardTitle>Create your account</CardTitle>
               <CardDescription>
-                Start managing room bookings for your practice.
+                Start managing room bookings for your business.
               </CardDescription>
             </>
           ) : (

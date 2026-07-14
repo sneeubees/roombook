@@ -1,6 +1,9 @@
 import { exec } from "child_process";
 import { promises as fs } from "fs";
 import { promisify } from "util";
+import { ConvexHttpClient } from "convex/browser";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
+import { api } from "../../../../../convex/_generated/api";
 
 const execAsync = promisify(exec);
 
@@ -20,6 +23,28 @@ export async function POST(request: Request) {
       return new Response(
         JSON.stringify({ error: "Invalid domain characters" }),
         { status: 400 }
+      );
+    }
+
+    // This endpoint controls nginx + certbot on the VPS. Require an
+    // authenticated caller who is the OWNER of an org that has this domain
+    // registered (verified server-side against Convex with the caller's
+    // identity), before touching any system config.
+    const token = await convexAuthNextjsToken();
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+      });
+    }
+    const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+    convex.setAuth(token);
+    const owned = await convex.query(api.domains.getOwnedByCaller, {
+      domain: safeDomain,
+    });
+    if (!owned) {
+      return new Response(
+        JSON.stringify({ error: "Forbidden: you do not own this domain" }),
+        { status: 403 }
       );
     }
 

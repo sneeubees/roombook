@@ -12,9 +12,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RoomBook - Room Booking for Medical Practices",
+  title: "RoomBook - Room Booking for Any Business",
   description:
-    "Book and manage physio rooms with automated invoicing and reporting.",
+    "Book and manage treatment rooms, salon studios, boardrooms, and office space with automated invoicing and reporting.",
 };
 
 export default function RootLayout({

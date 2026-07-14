@@ -41,7 +41,7 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
   professional: {
     id: "professional",
     label: "Professional",
-    tagline: "For growing practices",
+    tagline: "For growing businesses",
     monthlyPriceZAR: 39900, // R 399 / month
     description: "Unlimited rooms, full invoicing, reports — no white-label.",
     features: [
@@ -80,7 +80,7 @@ export const TIERS: Record<SubscriptionTier, TierConfig> = {
     maxRooms: 0,
     highlights: [
       "Everything in Professional",
-      "White-label domain (e.g. bookings.yourpractice.co.za)",
+      "White-label domain (e.g. bookings.yourbusiness.co.za)",
       "Custom logo on your tenants' calendar",
       "Priority support",
     ],

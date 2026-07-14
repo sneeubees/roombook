@@ -17,6 +17,11 @@ import React from "react";
  *   GET /api/email/test?token=roombook-test
  */
 export async function GET(request: Request) {
+  // Dev-only diagnostic. Never expose it in production, even with the token.
+  if (process.env.NODE_ENV === "production") {
+    return new Response("Not found", { status: 404 });
+  }
+
   const url = new URL(request.url);
   const token = url.searchParams.get("token");
   if (token !== "roombook-test") {

@@ -3,6 +3,13 @@ import { mutation, query } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
+import {
+  isSuperAdminUser,
+  isStaffResult,
+  requireMembership,
+  requireStaff,
+  requireUser,
+} from "./authz";
 
 // Helper: check if two time ranges overlap (exclusive end)
 function timesOverlap(
@@ -69,6 +76,7 @@ export const listByRoomAndDateRange = query({
     endDate: v.string(),
   },
   handler: async (ctx, args) => {
+    await requireMembership(ctx, args.orgId);
     const bookings = await ctx.db
       .query("bookings")
       .withIndex("by_org_status", (q) =>
@@ -82,12 +90,41 @@ export const listByRoomAndDateRange = query({
   },
 });
 
+// Confirmed bookings for one user, across all their orgs. The caller may only
+// read their OWN bookings (or a super admin, any). The private iCal feed uses
+// the token-scoped `listConfirmedByCalendarToken` below instead.
 export const listAllByUser = query({
   args: { userId: v.id("users") },
   handler: async (ctx, args) => {
+    const callerId = await requireUser(ctx);
+    if (
+      callerId !== args.userId &&
+      !(await isSuperAdminUser(ctx, callerId))
+    ) {
+      throw new Error("You can only view your own bookings");
+    }
     return await ctx.db
       .query("bookings")
       .withIndex("by_user_date", (q) => q.eq("userId", args.userId))
+      .collect()
+      .then((bookings) => bookings.filter((b) => b.status === "confirmed"));
+  },
+});
+
+// Token-scoped confirmed bookings for the private iCal feed. Possession of the
+// (secret) calendar token IS the authorization, so this is safe to call from
+// the unauthenticated calendar route. Returns null for an unknown token.
+export const listConfirmedByCalendarToken = query({
+  args: { token: v.string() },
+  handler: async (ctx, args) => {
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_calendarToken", (q) => q.eq("calendarToken", args.token))
+      .unique();
+    if (!profile) return null;
+    return await ctx.db
+      .query("bookings")
+      .withIndex("by_user_date", (q) => q.eq("userId", profile.userId))
       .collect()
       .then((bookings) => bookings.filter((b) => b.status === "confirmed"));
   },
@@ -101,6 +138,12 @@ export const listByUser = query({
     endDate: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    // Caller must be a member of the org; a member may read their own
+    // bookings, while staff / super admins may read any member's.
+    const authz = await requireMembership(ctx, args.orgId);
+    if (args.userId !== authz.userId && !isStaffResult(authz)) {
+      throw new Error("You can only view your own bookings");
+    }
     const bookings = await ctx.db
       .query("bookings")
       .withIndex("by_org_user_status", (q) =>
@@ -130,6 +173,7 @@ export const listAllByOrg = query({
     ),
   },
   handler: async (ctx, args) => {
+    await requireMembership(ctx, args.orgId);
     let bookings;
     if (args.status) {
       bookings = await ctx.db
@@ -174,12 +218,25 @@ export const create = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const actorId = await getAuthUserId(ctx);
-    if (!actorId) throw new Error("Not authenticated");
+    // Caller must be a member of the org they're booking in.
+    const { userId: actorId } = await requireMembership(ctx, args.orgId);
 
     const room = await ctx.db.get(args.roomId);
     if (!room) throw new Error("Room not found");
+    // The room must belong to the org passed in — never trust a mismatched
+    // orgId arg over the resource's own orgId.
+    if (room.orgId !== args.orgId) {
+      throw new Error("Room does not belong to this organisation");
+    }
     if (!room.isActive) throw new Error("Room is not active");
+
+    // Block writes for suspended orgs (reads + the payment flow stay open so a
+    // suspended owner can still pay). Missing / pending_approval status is
+    // treated as active so existing live orgs aren't locked out.
+    const org = await ctx.db.get(args.orgId);
+    if (org?.status === "suspended") {
+      throw new Error("This organisation is suspended. Please contact support.");
+    }
 
     // Determine who the booking is for
     const targetUserId: Id<"users"> = args.forUserId ?? actorId;
@@ -621,11 +678,10 @@ export const update = mutation({
     endTime: v.string(),
   },
   handler: async (ctx, args) => {
-    const actorId = await getAuthUserId(ctx);
-    if (!actorId) throw new Error("Not authenticated");
-
     const booking = await ctx.db.get(args.id);
     if (!booking) throw new Error("Booking not found");
+    // Changing a booking's time / rate is a staff-only edit.
+    await requireStaff(ctx, booking.orgId);
     if (booking.status !== "confirmed") throw new Error("Booking is not active");
     if (booking.slotType !== "session") throw new Error("Only session bookings can be updated");
     if (args.startTime >= args.endTime) throw new Error("Start time must be before end time");
@@ -736,11 +792,30 @@ export const editDetails = mutation({
     ),
   },
   handler: async (ctx, args) => {
-    const actorId = await getAuthUserId(ctx);
-    if (!actorId) throw new Error("Not authenticated");
-
     const booking = await ctx.db.get(args.id);
     if (!booking) throw new Error("Booking not found");
+
+    // Caller must be a member of the booking's org. Staff (owner/manager/
+    // super admin) may change anything; a plain booker may edit only their
+    // OWN booking's soft fields (description / notes), never the time or slot.
+    const authz = await requireMembership(ctx, booking.orgId);
+    const actorId = authz.userId;
+    const isStaff = isStaffResult(authz);
+    const changesHardFields =
+      args.slotType !== undefined ||
+      args.startTime !== undefined ||
+      args.endTime !== undefined;
+    if (!isStaff) {
+      if (booking.userId !== actorId) {
+        throw new Error("You can only edit your own bookings");
+      }
+      if (changesHardFields) {
+        throw new Error(
+          "Only an owner or manager can change a booking's time or slot"
+        );
+      }
+    }
+
     if (booking.status !== "confirmed") throw new Error("Cannot edit a cancelled booking");
 
     const room = await ctx.db.get(booking.roomId);

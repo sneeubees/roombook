@@ -1,25 +1,67 @@
 import { v } from "convex/values";
-import { action, mutation, query } from "./_generated/server";
+import { action, mutation, query, QueryCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { Id } from "./_generated/dataModel";
+import {
+  isStaffResult,
+  requireMembership,
+  requireStaff,
+  requireUser,
+} from "./authz";
 
+// Constant-time string comparison for the server-to-server PDF secret used by
+// the invoice-email path (which has no signed-in user). Avoids leaking length
+// / prefix information via early-exit comparison.
+function constantTimeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) {
+    diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
+/**
+ * Load an invoice and authorize the current caller to access it: the booker
+ * the invoice belongs to, staff / owner of the invoice's org, or a super
+ * admin. Throws otherwise. Returns the invoice.
+ */
+async function requireInvoiceAccess(ctx: QueryCtx, id: Id<"invoices">) {
+  const invoice = await ctx.db.get(id);
+  if (!invoice) throw new Error("Invoice not found");
+  const authz = await requireMembership(ctx, invoice.orgId);
+  if (!isStaffResult(authz) && invoice.userId !== authz.userId) {
+    throw new Error("Not authorised to access this invoice");
+  }
+  return invoice;
+}
+
+// Invoices for an org. Staff / owner / super admin see all; a plain booker
+// only ever gets their own (filtered server-side).
 export const listByOrg = query({
   args: { orgId: v.id("organizations") },
   handler: async (ctx, args) => {
-    return await ctx.db
+    const authz = await requireMembership(ctx, args.orgId);
+    const all = await ctx.db
       .query("invoices")
       .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
       .order("desc")
       .collect();
+    if (isStaffResult(authz)) return all;
+    return all.filter((i) => i.userId === authz.userId);
   },
 });
 
+// The signed-in user's own invoices (across orgs). Authorization is derived
+// from the caller — never a passed-in userId.
 export const listByUser = query({
-  args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUser(ctx);
     return await ctx.db
       .query("invoices")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .order("desc")
       .collect();
   },
@@ -28,13 +70,14 @@ export const listByUser = query({
 export const get = query({
   args: { id: v.id("invoices") },
   handler: async (ctx, args) => {
-    return await ctx.db.get(args.id);
+    return await requireInvoiceAccess(ctx, args.id);
   },
 });
 
 export const getLineItems = query({
   args: { invoiceId: v.id("invoices") },
   handler: async (ctx, args) => {
+    await requireInvoiceAccess(ctx, args.invoiceId);
     return await ctx.db
       .query("invoiceLineItems")
       .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
@@ -55,6 +98,9 @@ export const updateStatus = mutation({
     ),
   },
   handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.id);
+    if (!invoice) throw new Error("Invoice not found");
+    await requireStaff(ctx, invoice.orgId);
     const updates: Record<string, unknown> = { status: args.status };
     if (args.status === "paid") {
       updates.paidAt = Date.now();
@@ -74,6 +120,8 @@ export const updateStatus = mutation({
 export const listPaymentRuns = query({
   args: { orgId: v.id("organizations") },
   handler: async (ctx, args) => {
+    // Aggregate billing data across all bookers — staff / owner only.
+    await requireStaff(ctx, args.orgId);
     const org = await ctx.db.get(args.orgId);
     if (!org) return [];
     const invoiceDay = org.invoiceDayOfMonth ?? 1;
@@ -147,6 +195,7 @@ export const cancelForPeriod = mutation({
     reason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    await requireStaff(ctx, args.orgId);
     const invoices = await ctx.db
       .query("invoices")
       .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
@@ -271,6 +320,10 @@ export const regenerateForPeriod = action({
     periodEnd: v.string(),
   },
   handler: async (ctx, args): Promise<{ cancelled: number; created: number }> => {
+    await ctx.runQuery(internal.authz.assertOrgAccess, {
+      orgId: args.orgId,
+      level: "staff",
+    });
     const cancelled: number = await ctx.runMutation(api.invoices.cancelForPeriod, {
       orgId: args.orgId,
       periodStart: args.periodStart,
@@ -299,6 +352,8 @@ export const regenerateForPeriod = action({
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
+    // No org arg to scope against here — require authentication at minimum.
+    await requireUser(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -309,14 +364,114 @@ export const setPdfStorageId = mutation({
     pdfStorageId: v.id("_storage"),
   },
   handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.id);
+    if (!invoice) throw new Error("Invoice not found");
+    await requireStaff(ctx, invoice.orgId);
     await ctx.db.patch(args.id, { pdfStorageId: args.pdfStorageId });
   },
 });
 
+// Signed URL for an invoice's stored PDF. Restricted to the storageId actually
+// attached to an invoice the caller may access — never signs an arbitrary
+// _storage id.
 export const getPdfUrl = query({
-  args: { storageId: v.id("_storage") },
+  args: { invoiceId: v.id("invoices") },
   handler: async (ctx, args) => {
-    return await ctx.storage.getUrl(args.storageId);
+    const invoice = await requireInvoiceAccess(ctx, args.invoiceId);
+    if (!invoice.pdfStorageId) return null;
+    return await ctx.storage.getUrl(invoice.pdfStorageId);
+  },
+});
+
+/**
+ * Assembled data for rendering an invoice PDF (org header + banking details,
+ * booker billing details, line items). Consumed by the Next.js PDF builder.
+ *
+ * Access is enforced with the caller's identity: the booker the invoice
+ * belongs to, staff / owner of the org, or a super admin. The invoice-email
+ * path has no signed-in user, so it may instead present a shared server secret
+ * (`INTERNAL_API_SECRET`) — compared in constant time — to render attachments
+ * server-to-server. If the secret env var is unset, that bypass is disabled.
+ */
+export const getForPdf = query({
+  args: {
+    invoiceId: v.id("invoices"),
+    serverSecret: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.invoiceId);
+    if (!invoice) return null;
+
+    const expectedSecret = process.env.INTERNAL_API_SECRET;
+    const secretOk =
+      !!expectedSecret &&
+      !!args.serverSecret &&
+      constantTimeEqual(args.serverSecret, expectedSecret);
+
+    if (!secretOk) {
+      // Fall back to per-user authorization.
+      const userId = await getAuthUserId(ctx);
+      if (!userId) throw new Error("Not authorised to access this invoice");
+      const membership = await ctx.db
+        .query("memberships")
+        .withIndex("by_org_user", (q) =>
+          q.eq("orgId", invoice.orgId).eq("userId", userId)
+        )
+        .unique();
+      const profile = await ctx.db
+        .query("userProfiles")
+        .withIndex("by_user", (q) => q.eq("userId", userId))
+        .unique();
+      const isStaff =
+        profile?.isSuperAdmin === true ||
+        membership?.role === "owner" ||
+        membership?.role === "manager";
+      const isMember = !!membership || profile?.isSuperAdmin === true;
+      if (!isMember || (!isStaff && invoice.userId !== userId)) {
+        throw new Error("Not authorised to access this invoice");
+      }
+    }
+
+    const lineItems = await ctx.db
+      .query("invoiceLineItems")
+      .withIndex("by_invoice", (q) => q.eq("invoiceId", args.invoiceId))
+      .collect();
+
+    const org = await ctx.db.get(invoice.orgId);
+    if (!org) return null;
+
+    const bookerUser = await ctx.db.get(invoice.userId);
+    const bookerProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", invoice.userId))
+      .unique();
+
+    return {
+      invoice,
+      lineItems,
+      org: {
+        name: org.name,
+        logoUrl: org.logoUrl,
+        address: org.address,
+        phone: org.phone,
+        email: org.email,
+        vatNumber: org.vatNumber,
+        vatEnabled: org.vatEnabled,
+        bankingDetails: org.bankingDetails,
+      },
+      booker: {
+        fullName:
+          bookerProfile?.fullName ??
+          (bookerUser as { name?: string } | null)?.name ??
+          "Unknown",
+        email: (bookerUser as { email?: string } | null)?.email ?? "",
+        phone: bookerProfile?.phone,
+        billingCompanyName: bookerProfile?.billingCompanyName,
+        billingAddress: bookerProfile?.billingAddress,
+        billingContactNumber: bookerProfile?.billingContactNumber,
+        billingVatNumber: bookerProfile?.billingVatNumber,
+      },
+    };
   },
 });
 
@@ -333,6 +488,10 @@ export const emailInvoices = action({
     ctx,
     args
   ): Promise<{ sent: number; skipped: number }> => {
+    await ctx.runQuery(internal.authz.assertOrgAccess, {
+      orgId: args.orgId,
+      level: "staff",
+    });
     const invoices: any[] = await ctx.runQuery(api.invoices.listByOrg, {
       orgId: args.orgId,
     });
@@ -373,10 +532,19 @@ export const generateNow = action({
     endDate: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<number> => {
+    await ctx.runQuery(internal.authz.assertOrgAccess, {
+      orgId: args.orgId,
+      level: "staff",
+    });
     const org: any = await ctx.runQuery(internal.invoiceGenerationHelpers.getOrgById, {
       orgId: args.orgId,
     });
     if (!org) throw new Error("Organization not found");
+    // Block invoice generation for suspended orgs (undefined / pending_approval
+    // is treated as active so existing live orgs keep billing).
+    if (org.status === "suspended") {
+      throw new Error("This organisation is suspended. Please contact support.");
+    }
 
     let startStr: string;
     let endStr: string;

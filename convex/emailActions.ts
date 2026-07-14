@@ -4,6 +4,10 @@ import { internal } from "./_generated/api";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://roombook.co.za";
 
+// Shared secret authenticating this server-to-server call to the Next.js mail
+// relay (/api/email/send). Must match INTERNAL_API_SECRET in the Next env.
+const INTERNAL_SECRET = process.env.INTERNAL_API_SECRET ?? "";
+
 export const sendBookingConfirmation = internalAction({
   args: {
     bookingId: v.id("bookings"),
@@ -24,7 +28,10 @@ export const sendBookingConfirmation = internalAction({
     try {
       await fetch(`${APP_URL}/api/email/send`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-secret": INTERNAL_SECRET,
+        },
         body: JSON.stringify({
           type: "booking_confirmation",
           data: {
@@ -70,7 +77,10 @@ export const sendBookingCancellation = internalAction({
     try {
       await fetch(`${APP_URL}/api/email/send`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-secret": INTERNAL_SECRET,
+        },
         body: JSON.stringify({
           type: "booking_cancellation",
           data: {
@@ -124,7 +134,10 @@ export const sendCancellationRequest = internalAction({
     try {
       await fetch(`${APP_URL}/api/email/send`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-secret": INTERNAL_SECRET,
+        },
         body: JSON.stringify({
           type: "cancellation_request",
           data: {
@@ -161,7 +174,10 @@ export const sendInvoiceEmail = internalAction({
     try {
       await fetch(`${APP_URL}/api/email/send`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-secret": INTERNAL_SECRET,
+        },
         body: JSON.stringify({
           type: "invoice_ready",
           data: {
@@ -212,7 +228,10 @@ export const sendInvitationEmail = internalAction({
     try {
       await fetch(`${APP_URL}/api/email/send`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-secret": INTERNAL_SECRET,
+        },
         body: JSON.stringify({
           type: "invitation",
           data: {
@@ -263,7 +282,10 @@ export const sendWaitlistNotification = internalAction({
     try {
       await fetch(`${APP_URL}/api/email/send`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-internal-secret": INTERNAL_SECRET,
+        },
         body: JSON.stringify({
           type: "waitlist_available",
           data: {

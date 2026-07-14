@@ -216,7 +216,7 @@ export function ProfileDialog({ open, onOpenChange }: ProfileDialogProps) {
                   id="org-name"
                   value={orgName}
                   onChange={(e) => setOrgName(e.target.value)}
-                  placeholder="e.g., PhysioCare Practice"
+                  placeholder="e.g., Wellness Studio"
                 />
                 <p className="text-xs text-muted-foreground">
                   This name is shown across the app and on invoices.

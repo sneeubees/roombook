@@ -2,6 +2,11 @@ import { v } from "convex/values";
 import { mutation, query, QueryCtx } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
+import {
+  requireMembership,
+  requireOwner,
+  requireSuperAdmin,
+} from "./authz";
 
 async function getMembershipFor(
   ctx: QueryCtx,
@@ -37,6 +42,7 @@ export const currentOrg = query({
 export const listMembershipsByOrg = query({
   args: { orgId: v.id("organizations") },
   handler: async (ctx, args) => {
+    await requireMembership(ctx, args.orgId);
     return await ctx.db
       .query("memberships")
       .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
@@ -161,6 +167,24 @@ export const update = mutation({
       }
     }
 
+    // Server-side range validation. A prior review found that e.g. vatRate=15
+    // (meant as "15%") computed ~94% tax, and an out-of-range invoice day
+    // silently produced invalid billing periods.
+    if (args.invoiceDayOfMonth !== undefined) {
+      if (
+        !Number.isFinite(args.invoiceDayOfMonth) ||
+        args.invoiceDayOfMonth < 1 ||
+        args.invoiceDayOfMonth > 31
+      ) {
+        throw new Error("Invoice day of month must be between 1 and 31");
+      }
+    }
+    if (args.vatRate !== undefined) {
+      if (!Number.isFinite(args.vatRate) || args.vatRate < 0 || args.vatRate > 1) {
+        throw new Error("VAT rate must be a fraction between 0 and 1 (e.g. 0.15 for 15%)");
+      }
+    }
+
     const { id, ...updates } = args;
     const filteredUpdates = Object.fromEntries(
       Object.entries(updates).filter(([, value]) => value !== undefined)
@@ -179,6 +203,7 @@ export const generateLogoUploadUrl = mutation({
 export const saveLogoAndGetUrl = mutation({
   args: { orgId: v.id("organizations"), storageId: v.id("_storage") },
   handler: async (ctx, args) => {
+    await requireOwner(ctx, args.orgId);
     const url = await ctx.storage.getUrl(args.storageId);
     if (url) {
       await ctx.db.patch(args.orgId, { logoUrl: url });
@@ -187,23 +212,29 @@ export const saveLogoAndGetUrl = mutation({
   },
 });
 
+// Super-admin-only: full tenant list for the admin panel.
 export const listAll = query({
   args: {},
   handler: async (ctx) => {
+    await requireSuperAdmin(ctx);
     return await ctx.db.query("organizations").collect();
   },
 });
 
+// Super-admin-only: activate an org past the payment/approval gate.
 export const approve = mutation({
   args: { id: v.id("organizations") },
   handler: async (ctx, args) => {
+    await requireSuperAdmin(ctx);
     await ctx.db.patch(args.id, { status: "active" });
   },
 });
 
+// Super-admin-only: suspend an org.
 export const suspend = mutation({
   args: { id: v.id("organizations") },
   handler: async (ctx, args) => {
+    await requireSuperAdmin(ctx);
     await ctx.db.patch(args.id, { status: "suspended" });
   },
 });

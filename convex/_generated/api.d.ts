@@ -12,6 +12,7 @@ import type * as ResendOTP from "../ResendOTP.js";
 import type * as activityLogs from "../activityLogs.js";
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
+import type * as authz from "../authz.js";
 import type * as bookings from "../bookings.js";
 import type * as crons from "../crons.js";
 import type * as domains from "../domains.js";
@@ -40,6 +41,7 @@ declare const fullApi: ApiFromModules<{
   activityLogs: typeof activityLogs;
   admin: typeof admin;
   auth: typeof auth;
+  authz: typeof authz;
   bookings: typeof bookings;
   crons: typeof crons;
   domains: typeof domains;

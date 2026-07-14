@@ -66,14 +66,33 @@ const features = [
 
 const previewBookings = [
   { time: "08:00", room: "Treatment Room 1", booker: "Dr. Naidoo" },
-  { time: "10:30", room: "Rehab Studio", booker: "Physio Team" },
-  { time: "14:00", room: "Consult Room 3", booker: "Dr. Patel" },
+  { time: "10:30", room: "Salon Studio 2", booker: "Chantel M." },
+  { time: "14:00", room: "The Boardroom", booker: "Acme Consulting" },
 ];
 
 const roomAvailability = [
   { room: "Treatment Room 1", status: "Booked", width: "78%" },
-  { room: "Rehab Studio", status: "Available", width: "42%" },
-  { room: "Consult Room 3", status: "Booked", width: "64%" },
+  { room: "Salon Studio 2", status: "Available", width: "42%" },
+  { room: "The Boardroom", status: "Booked", width: "64%" },
+];
+
+const audiences = [
+  {
+    title: "Medical & health practices",
+    description: "Rent consulting and treatment rooms to visiting practitioners.",
+  },
+  {
+    title: "Beauty salons & spas",
+    description: "Let stylists and therapists book chairs, studios, and rooms.",
+  },
+  {
+    title: "Boardrooms & meeting rooms",
+    description: "Offer meeting space by the hour, half day, or full day.",
+  },
+  {
+    title: "Offices & shared workspaces",
+    description: "Manage desks and offices for teams and freelancers.",
+  },
 ];
 
 export default function LandingPage() {
@@ -236,7 +255,7 @@ export default function LandingPage() {
                     " h-9 px-4 shadow-sm shadow-primary/20 hover:bg-primary/90"
                   }
                 >
-                  Register Your Practice
+                  Register Your Business
                 </Link>
               </>
             )}
@@ -247,7 +266,7 @@ export default function LandingPage() {
       <section className="relative flex-1 overflow-hidden bg-[linear-gradient(180deg,#ffffff_0%,#ecfdf5_48%,#ecfeff_100%)]">
         <div
           className="absolute inset-0 bg-cover bg-center opacity-70"
-          style={{ backgroundImage: "url('/hero-medical-practice-bg.webp')" }}
+          style={{ backgroundImage: "url('/hero-rooms-bg.webp')" }}
         />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgb(255_255_255_/_0.50)_0%,rgb(255_255_255_/_0.42)_48%,rgb(236_254_255_/_0.62)_100%)]" />
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgb(5_150_105_/_0.18),transparent_32%),radial-gradient(circle_at_top_right,rgb(20_184_166_/_0.14),transparent_30%)]" />
@@ -259,11 +278,11 @@ export default function LandingPage() {
           </div>
           <h1 className="mx-auto max-w-5xl text-balance font-heading text-5xl font-bold leading-[1.02] text-foreground sm:text-6xl lg:text-7xl">
             Modern room management for{" "}
-            <span className="text-primary">medical practices</span>
+            <span className="text-primary">any business</span>
           </h1>
           <p className="mx-auto mt-8 max-w-3xl text-pretty text-lg font-semibold leading-8 text-slate-900 sm:text-xl sm:leading-9">
-            Manage room bookings, usage tracking, and invoicing from one
-            platform
+            Treatment rooms, salon studios, boardrooms, and office space —
+            manage bookings, usage tracking, and invoicing from one platform
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
@@ -273,7 +292,7 @@ export default function LandingPage() {
                 " h-12 px-6 text-base shadow-xl shadow-primary/25 hover:bg-primary/90"
               }
             >
-              Register Your Practice
+              Register Your Business
               <ArrowRight className="ml-1 h-4 w-4" />
             </Link>
             <Link
@@ -297,7 +316,7 @@ export default function LandingPage() {
             </span>
             <span className="flex items-center gap-2">
               <Check className="h-4 w-4 text-secondary" />
-              Practice-level reporting
+              Business-wide reporting
             </span>
           </div>
         </div>
@@ -427,6 +446,35 @@ export default function LandingPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="border-y border-border/60 bg-white py-20">
+        <div className="container mx-auto px-6">
+          <div className="mx-auto mb-10 max-w-2xl text-center">
+            <h2 className="mb-3 font-heading text-4xl font-bold leading-tight">
+              Built for any room you rent out
+            </h2>
+            <p className="text-base leading-7 text-muted-foreground">
+              If your business rents rooms, chairs, or desks to practitioners
+              and teams, RoomBook runs the bookings and the billing.
+            </p>
+          </div>
+          <div className="mx-auto grid max-w-6xl gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {audiences.map((audience) => (
+              <div
+                key={audience.title}
+                className="rounded-2xl border border-border bg-white p-6 shadow-sm shadow-slate-900/5 transition-all duration-200 hover:-translate-y-1 hover:border-primary/20 hover:shadow-lg hover:shadow-slate-900/10"
+              >
+                <h3 className="font-heading text-lg font-bold leading-snug">
+                  {audience.title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                  {audience.description}
+                </p>
+              </div>
+            ))}
           </div>
         </div>
       </section>

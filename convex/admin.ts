@@ -1,11 +1,16 @@
-import { mutation } from "./_generated/server";
+import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
+
+// NOTE: Every function in this module is an `internalMutation` — these are
+// one-shot maintenance / backfill routines and a super-admin bootstrap. They
+// must NOT be part of the public API; run them from the Convex dashboard or
+// CLI (`npx convex run admin:...`) only.
 
 /**
  * One-shot: stamp all existing organisations as 'enterprise' tier so the
  * dev test users keep full access when subscription tiers are reintroduced.
  */
-export const backfillTiers = mutation({
+export const backfillTiers = internalMutation({
   args: {},
   handler: async (ctx) => {
     const orgs = await ctx.db.query("organizations").collect();
@@ -28,7 +33,7 @@ export const backfillTiers = mutation({
  *
  * Run once after turning on Password({ verify: ResendOTP }).
  */
-export const backfillEmailVerification = mutation({
+export const backfillEmailVerification = internalMutation({
   args: {},
   handler: async (ctx) => {
     const users = await ctx.db.query("users").collect();
@@ -82,7 +87,7 @@ export const backfillEmailVerification = mutation({
  *   - authAccounts.providerAccountId (Convex Auth uses this for password lookups)
  *   - userProfiles.email (if present)
  */
-export const backfillEmailCase = mutation({
+export const backfillEmailCase = internalMutation({
   args: {},
   handler: async (ctx) => {
     let usersUpdated = 0;
@@ -134,7 +139,7 @@ export const backfillEmailCase = mutation({
   },
 });
 
-export const bootstrapSuperAdmin = mutation({
+export const bootstrapSuperAdmin = internalMutation({
   args: { email: v.string() },
   handler: async (ctx, args) => {
     const profiles = await ctx.db.query("userProfiles").collect();
@@ -176,46 +181,5 @@ export const bootstrapSuperAdmin = mutation({
       email: args.email,
       approvedOrgs,
     };
-  },
-});
-
-/**
- * DEV-ONLY: Wipes all data except super admin users.
- * Should be removed before production launch.
- */
-export const wipeAll = mutation({
-  args: { confirmKeyword: v.string() },
-  handler: async (ctx, args) => {
-    if (args.confirmKeyword !== "WIPE_EVERYTHING") {
-      throw new Error("Confirmation keyword required");
-    }
-
-    const counts: Record<string, number> = {};
-
-    // Delete all tables
-    const tables = [
-      "bookings",
-      "roomBlocks",
-      "rooms",
-      "waitlist",
-      "invoices",
-      "invoiceLineItems",
-      "invitations",
-      "notifications",
-      "domains",
-      "organizations",
-      "activityLogs",
-      "users",
-    ] as const;
-
-    for (const table of tables) {
-      const rows = await ctx.db.query(table).collect();
-      for (const row of rows) {
-        await ctx.db.delete(row._id);
-      }
-      counts[table] = rows.length;
-    }
-
-    return counts;
   },
 });

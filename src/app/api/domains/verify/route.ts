@@ -1,7 +1,17 @@
 import { promises as dns } from "dns";
+import { convexAuthNextjsToken } from "@convex-dev/auth/nextjs/server";
 
 export async function POST(request: Request) {
   try {
+    // Require authentication — this triggers server-side DNS lookups and must
+    // not be an anonymous, internet-callable probe.
+    const token = await convexAuthNextjsToken();
+    if (!token) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+      });
+    }
+
     const { domain } = await request.json();
 
     if (!domain) {

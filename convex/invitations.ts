@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { internal } from "./_generated/api";
+import { requireStaff } from "./authz";
 
 export const listByOrg = query({
   args: { orgId: v.id("organizations") },
@@ -105,6 +106,18 @@ export const accept = mutation({
     if (Date.now() > invitation.expiresAt)
       throw new Error("Invitation has expired");
 
+    // The signed-in account must match the address the invite was sent to —
+    // otherwise anyone with the (emailed) token could join the org.
+    const user = await ctx.db.get(userId);
+    const userEmail = (user as { email?: string } | null)?.email
+      ?.trim()
+      .toLowerCase();
+    if (!userEmail || userEmail !== invitation.email.trim().toLowerCase()) {
+      throw new Error(
+        "This invitation was sent to a different email address. Sign in with that address to accept it."
+      );
+    }
+
     // Check if user is already a member; if so just mark accepted.
     const existingMembership = await ctx.db
       .query("memberships")
@@ -133,6 +146,9 @@ export const accept = mutation({
 export const revoke = mutation({
   args: { id: v.id("invitations") },
   handler: async (ctx, args) => {
+    const invitation = await ctx.db.get(args.id);
+    if (!invitation) throw new Error("Invitation not found");
+    await requireStaff(ctx, invitation.orgId);
     await ctx.db.patch(args.id, { status: "revoked" });
   },
 });

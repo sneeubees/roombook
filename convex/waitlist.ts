@@ -1,13 +1,17 @@
 import { v } from "convex/values";
 import { mutation, query } from "./_generated/server";
 import { getAuthUserId } from "@convex-dev/auth/server";
+import { requireStaff, requireUser } from "./authz";
 
+// The signed-in user's own waitlist entries. Derived from the caller — never a
+// passed-in userId.
 export const listByUser = query({
-  args: { userId: v.id("users") },
-  handler: async (ctx, args) => {
+  args: {},
+  handler: async (ctx) => {
+    const userId = await requireUser(ctx);
     return await ctx.db
       .query("waitlist")
-      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .withIndex("by_user", (q) => q.eq("userId", userId))
       .collect();
   },
 });
@@ -53,6 +57,13 @@ export const join = mutation({
 export const markBooked = mutation({
   args: { id: v.id("waitlist") },
   handler: async (ctx, args) => {
+    const entry = await ctx.db.get(args.id);
+    if (!entry) throw new Error("Waitlist entry not found");
+    const userId = await requireUser(ctx);
+    // The entry's owner, or staff of its org, may mark it booked.
+    if (entry.userId !== userId) {
+      await requireStaff(ctx, entry.orgId);
+    }
     await ctx.db.patch(args.id, { status: "booked" });
   },
 });

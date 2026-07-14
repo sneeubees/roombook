@@ -89,20 +89,20 @@ export default function OnboardingPage() {
       <div className="w-full max-w-md space-y-6 rounded-lg border bg-background p-8 shadow-sm">
         <div className="text-center space-y-2">
           <DoorOpen className="h-10 w-10 text-primary mx-auto" />
-          <h1 className="text-2xl font-bold">Set up your organization / practice</h1>
+          <h1 className="text-2xl font-bold">Set up your organization</h1>
           <p className="text-sm text-muted-foreground">
-            Give your organization / practice a name to get started.
+            Give your organization a name to get started.
           </p>
         </div>
 
         <form onSubmit={handleCreate} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="org-name">Organization / Practice Name</Label>
+            <Label htmlFor="org-name">Organization Name</Label>
             <Input
               id="org-name"
               value={orgName}
               onChange={(e) => setOrgName(e.target.value)}
-              placeholder="e.g., PhysioCare Practice"
+              placeholder="e.g., Wellness Studio"
               autoFocus
               required
             />

@@ -6,61 +6,53 @@ import React from "react";
 import { InvoiceDocument, type InvoiceData } from "@/lib/pdf/invoice-template";
 import { format } from "date-fns";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 /**
  * Build the invoice PDF for an invoice id. Used by:
- *  - GET /api/invoices/[id]/pdf  (download)
- *  - POST /api/email/send  (attaches the PDF to invoice_ready emails)
+ *  - GET /api/invoices/[id]/pdf  (download) — passes the signed-in user's token
+ *  - POST /api/email/send  (attaches the PDF to invoice_ready emails) — passes
+ *    the shared server secret, since there is no signed-in user
  *
- * Returns null if the invoice or its org cannot be loaded so callers can
- * decide whether to fail loudly or fall back to a link.
+ * All invoice data is fetched via the single authorized `invoices.getForPdf`
+ * query, which enforces access with the caller's identity (a booker may fetch
+ * only their own invoice; staff/owner/super admin any in their org) or the
+ * server secret. Returns null if the invoice cannot be loaded or the caller is
+ * not authorized (callers decide whether to fail loudly or fall back to a link).
  */
 export async function buildInvoicePdf(
-  invoiceId: Id<"invoices">
+  invoiceId: Id<"invoices">,
+  auth?: { token?: string; serverSecret?: string }
 ): Promise<{ buffer: Buffer; invoiceNumber: string } | null> {
-  const invoice = await convex.query(api.invoices.get, { id: invoiceId });
-  if (!invoice) return null;
+  const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  if (auth?.token) {
+    convex.setAuth(auth.token);
+  }
 
-  const lineItems = await convex.query(api.invoices.getLineItems, {
+  const data = await convex.query(api.invoices.getForPdf, {
     invoiceId,
+    serverSecret: auth?.serverSecret,
   });
+  if (!data) return null;
 
-  const allOrgs = await convex.query(api.organizations.listAll);
-  const orgData = allOrgs.find((o) => o._id === invoice.orgId);
-  if (!orgData) return null;
-
-  const userData = await convex.query(api.users.getById, {
-    id: invoice.userId,
-  });
-
-  const vatEnabled = orgData.vatEnabled !== false;
-  const u = userData as
-    | (typeof userData & {
-        billingCompanyName?: string;
-        billingAddress?: string;
-        billingContactNumber?: string;
-        billingVatNumber?: string;
-      })
-    | null;
+  const { invoice, lineItems, org, booker } = data;
+  const vatEnabled = org.vatEnabled !== false;
 
   const invoiceData: InvoiceData = {
-    orgName: orgData.name,
-    orgLogoUrl: orgData.logoUrl,
-    orgAddress: orgData.address,
-    orgPhone: orgData.phone,
-    orgEmail: orgData.email,
-    orgVatNumber: orgData.vatNumber,
-    bankName: orgData.bankingDetails?.bankName,
-    accountNumber: orgData.bankingDetails?.accountNumber,
-    branchCode: orgData.bankingDetails?.branchCode,
-    accountType: orgData.bankingDetails?.accountType,
-    customerName: u?.fullName ?? "Unknown",
-    customerEmail: u?.email ?? "",
-    customerPhone: u?.billingContactNumber ?? u?.phone,
-    customerCompanyName: u?.billingCompanyName,
-    customerBillingAddress: u?.billingAddress,
-    customerVatNumber: u?.billingVatNumber,
+    orgName: org.name,
+    orgLogoUrl: org.logoUrl,
+    orgAddress: org.address,
+    orgPhone: org.phone,
+    orgEmail: org.email,
+    orgVatNumber: org.vatNumber,
+    bankName: org.bankingDetails?.bankName,
+    accountNumber: org.bankingDetails?.accountNumber,
+    branchCode: org.bankingDetails?.branchCode,
+    accountType: org.bankingDetails?.accountType,
+    customerName: booker.fullName ?? "Unknown",
+    customerEmail: booker.email ?? "",
+    customerPhone: booker.billingContactNumber ?? booker.phone,
+    customerCompanyName: booker.billingCompanyName,
+    customerBillingAddress: booker.billingAddress,
+    customerVatNumber: booker.billingVatNumber,
     vatEnabled,
     invoiceNumber: invoice.invoiceNumber,
     invoiceDate: format(new Date(), "d MMMM yyyy"),
