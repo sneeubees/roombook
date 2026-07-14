@@ -1,5 +1,11 @@
 import { v } from "convex/values";
-import { action, mutation, query, QueryCtx } from "./_generated/server";
+import {
+  action,
+  internalMutation,
+  mutation,
+  query,
+  QueryCtx,
+} from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import { getAuthUserId } from "@convex-dev/auth/server";
 import { Id } from "./_generated/dataModel";
@@ -9,6 +15,10 @@ import {
   requireStaff,
   requireUser,
 } from "./authz";
+import {
+  billingPeriodForRunMonth,
+  lastDayOfMonth,
+} from "./invoiceGenerationHelpers";
 
 // Constant-time string comparison for the server-to-server PDF secret used by
 // the invoice-email path (which has no signed-in user). Avoids leaking length
@@ -149,17 +159,14 @@ export const listPaymentRuns = query({
 
     for (let offset = 0; offset < 13; offset++) {
       const runMonth = new Date(today.getFullYear(), today.getMonth() - offset + 1, 1);
-      // runDate = invoiceDay of (runMonth-1); no, we use runMonth itself.
-      // Convention: "April 2026 run" fires on invoiceDay of April 2026.
-      const year = runMonth.getFullYear();
-      const month = runMonth.getMonth();
-      const pEnd = new Date(year, month, invoiceDay);
-      let pStart: Date;
-      if (invoiceDay >= 28) {
-        pStart = new Date(pEnd.getFullYear(), pEnd.getMonth(), 1);
-      } else {
-        pStart = new Date(pEnd.getFullYear(), pEnd.getMonth() - 1, invoiceDay + 1);
-      }
+      // Convention: "April 2026 run" fires on invoiceDay of April 2026. The
+      // configured day is clamped per month and periods are contiguous, so the
+      // dialog matches exactly what the cron / manual generation produces.
+      const { periodStart: pStart, periodEnd: pEnd } = billingPeriodForRunMonth(
+        invoiceDay,
+        runMonth.getFullYear(),
+        runMonth.getMonth()
+      );
       const startStr = pStart.toISOString().split("T")[0];
       const endStr = pEnd.toISOString().split("T")[0];
       const key = `${pEnd.getFullYear()}-${String(pEnd.getMonth() + 1).padStart(2, "0")}`;
@@ -198,13 +205,24 @@ export const cancelForPeriod = mutation({
     await requireStaff(ctx, args.orgId);
     const invoices = await ctx.db
       .query("invoices")
-      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .withIndex("by_org_period", (q) =>
+        q.eq("orgId", args.orgId).eq("periodStart", args.periodStart)
+      )
       .collect();
-    const target = invoices.filter(
-      (i) =>
-        i.periodStart === args.periodStart &&
-        i.periodEnd === args.periodEnd &&
-        i.status !== "cancelled"
+    const matching = invoices.filter((i) => i.periodEnd === args.periodEnd);
+
+    // Never cancel a PAID invoice. Refuse the whole operation so a settled
+    // invoice can't be quietly voided and then re-issued + re-emailed.
+    const paid = matching.filter((i) => i.status === "paid");
+    if (paid.length > 0) {
+      throw new Error(
+        `Cannot regenerate this period: ${paid.length} invoice(s) are already ` +
+          `paid. Cancel or exclude them manually first.`
+      );
+    }
+
+    const target = matching.filter(
+      (i) => i.status !== "cancelled" && i.status !== "paid"
     );
     for (const inv of target) {
       await ctx.db.patch(inv._id, {
@@ -213,7 +231,13 @@ export const cancelForPeriod = mutation({
         cancelledReason: args.reason ?? "Regenerated",
       });
     }
-    return target.length;
+    return {
+      cancelledCount: target.length,
+      cancelled: target.map((inv) => ({
+        invoiceId: inv._id,
+        userId: inv.userId,
+      })),
+    };
   },
 });
 
@@ -324,7 +348,13 @@ export const regenerateForPeriod = action({
       orgId: args.orgId,
       level: "staff",
     });
-    const cancelled: number = await ctx.runMutation(api.invoices.cancelForPeriod, {
+    const {
+      cancelledCount,
+      cancelled,
+    }: {
+      cancelledCount: number;
+      cancelled: Array<{ invoiceId: Id<"invoices">; userId: Id<"users"> }>;
+    } = await ctx.runMutation(api.invoices.cancelForPeriod, {
       orgId: args.orgId,
       periodStart: args.periodStart,
       periodEnd: args.periodEnd,
@@ -338,14 +368,69 @@ export const regenerateForPeriod = action({
         endDate: args.periodEnd,
       });
     } catch (err) {
-      // Period may have no billable bookings — that's OK, return 0 created.
-      if (err instanceof Error && err.message.startsWith("No billable bookings")) {
+      // Period may have no billable bookings — that's fine, 0 created. Convex
+      // wraps thrown errors ("[CONVEX ...] Server Error ... No billable
+      // bookings ..."), so match the message anywhere in the string rather
+      // than with startsWith, which never fired against the wrapped form.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("No billable bookings")) {
         created = 0;
       } else {
         throw err;
       }
     }
-    return { cancelled, created };
+    // Link each cancelled invoice to the fresh invoice that replaced it (same
+    // user + exact period), so the audit trail records what superseded it.
+    if (cancelled.length > 0 && created > 0) {
+      await ctx.runMutation(internal.invoices.linkReplacedInvoices, {
+        orgId: args.orgId,
+        periodStart: args.periodStart,
+        periodEnd: args.periodEnd,
+        cancelled,
+      });
+    }
+    return { cancelled: cancelledCount, created };
+  },
+});
+
+/**
+ * Link cancelled invoices to the fresh invoice that replaced them after a
+ * regeneration. For each cancelled invoice, look up the current active invoice
+ * for the same user + exact period and write `replacedByInvoiceId`.
+ */
+export const linkReplacedInvoices = internalMutation({
+  args: {
+    orgId: v.id("organizations"),
+    periodStart: v.string(),
+    periodEnd: v.string(),
+    cancelled: v.array(
+      v.object({
+        invoiceId: v.id("invoices"),
+        userId: v.id("users"),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    const periodInvoices = await ctx.db
+      .query("invoices")
+      .withIndex("by_org_period", (q) =>
+        q.eq("orgId", args.orgId).eq("periodStart", args.periodStart)
+      )
+      .collect();
+
+    const activeByUser = new Map<string, Id<"invoices">>();
+    for (const inv of periodInvoices) {
+      if (inv.periodEnd !== args.periodEnd) continue;
+      if (inv.status === "cancelled") continue;
+      activeByUser.set(inv.userId as unknown as string, inv._id);
+    }
+
+    for (const c of args.cancelled) {
+      const replacement = activeByUser.get(c.userId as unknown as string);
+      if (replacement && replacement !== c.invoiceId) {
+        await ctx.db.patch(c.invoiceId, { replacedByInvoiceId: replacement });
+      }
+    }
   },
 });
 
@@ -554,28 +639,25 @@ export const generateNow = action({
       startStr = args.startDate;
       endStr = args.endDate;
     } else {
-      // Auto mode — calculate from invoiceDayOfMonth
-      // Period end = invoiceDay of current (or most recent) month
-      // Period start = invoiceDay+1 of previous month
-      // Exception: if invoiceDay >= 28, start wraps to 1st of current month
+      // Auto mode — derive the period from invoiceDayOfMonth. Pick the most
+      // recent run month whose (clamped) invoice day has already occurred, then
+      // use the shared contiguous-period math. Clamping day 29/30/31 to a short
+      // month's last day avoids the `new Date(y, m, 31)` rollover that produced
+      // a bogus 1-day period.
       const today = new Date();
       const invoiceDay = org.invoiceDayOfMonth ?? 1;
+      const y = today.getFullYear();
+      const m = today.getMonth();
 
-      // Period end = most recent invoiceDay
-      let pEnd = new Date(today.getFullYear(), today.getMonth(), invoiceDay);
-      if (pEnd > today) {
-        pEnd = new Date(today.getFullYear(), today.getMonth() - 1, invoiceDay);
-      }
+      // If this month's invoice day hasn't happened yet, bill the previous run.
+      const effThisMonth = Math.min(invoiceDay, lastDayOfMonth(y, m));
+      const runMonthIndex = new Date(y, m, effThisMonth) > today ? m - 1 : m;
 
-      // Period start: day after invoiceDay of the month before pEnd
-      let pStart: Date;
-      if (invoiceDay >= 28) {
-        // Wraps: start from 1st of the same month as pEnd
-        pStart = new Date(pEnd.getFullYear(), pEnd.getMonth(), 1);
-      } else {
-        // Normal: start from invoiceDay+1 of previous month
-        pStart = new Date(pEnd.getFullYear(), pEnd.getMonth() - 1, invoiceDay + 1);
-      }
+      const { periodStart: pStart, periodEnd: pEnd } = billingPeriodForRunMonth(
+        invoiceDay,
+        y,
+        runMonthIndex
+      );
 
       startStr = pStart.toISOString().split("T")[0];
       endStr = pEnd.toISOString().split("T")[0];

@@ -22,25 +22,73 @@ function timesOverlap(
 }
 
 /**
- * Effective start time (ms epoch) of a booking. Used to enforce the
- * 30-minute cancellation rule on bookers. Sessions use the actual start
- * time; slot-based bookings fall back to sensible defaults:
+ * Absolute epoch ms for a wall-clock date + time interpreted in `timeZone`.
+ * Uses the runtime's IANA timezone data via Intl; if that's unavailable it
+ * falls back to treating the wall clock as UTC (no worse than the old
+ * behaviour). South Africa (the default zone) is a fixed UTC+2 with no DST.
+ */
+function wallClockToEpochMs(
+  dateStr: string,
+  timeStr: string,
+  timeZone: string
+): number {
+  const [y, mo, d] = dateStr.split("-").map(Number);
+  const [h, mi] = timeStr.split(":").map(Number);
+  const naiveUtc = Date.UTC(y, mo - 1, d, h, mi, 0);
+  try {
+    const dtf = new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    });
+    const map: Record<string, number> = {};
+    for (const p of dtf.formatToParts(new Date(naiveUtc))) {
+      if (p.type !== "literal") map[p.type] = Number(p.value);
+    }
+    const asZoneUtc = Date.UTC(
+      map.year,
+      (map.month ?? 1) - 1,
+      map.day ?? 1,
+      map.hour ?? 0,
+      map.minute ?? 0,
+      map.second ?? 0
+    );
+    // Offset (ms) the zone is ahead of UTC at that instant.
+    const offset = asZoneUtc - naiveUtc;
+    return naiveUtc - offset;
+  } catch {
+    return naiveUtc;
+  }
+}
+
+/**
+ * Effective start time (ms epoch) of a booking, interpreted in the org's
+ * timezone. Used to enforce the cancellation deadline on bookers. Sessions use
+ * the actual start time; slot-based bookings fall back to sensible defaults:
  *   - am       → 08:00
  *   - pm       → 13:00
  *   - full_day → 08:00
  */
-export function bookingStartMs(booking: {
-  date: string;
-  slotType: string;
-  startTime?: string;
-}): number {
+export function bookingStartMs(
+  booking: {
+    date: string;
+    slotType: string;
+    startTime?: string;
+  },
+  timeZone: string = "Africa/Johannesburg"
+): number {
   let timeStr = "08:00";
   if (booking.slotType === "session" && booking.startTime) {
     timeStr = booking.startTime;
   } else if (booking.slotType === "pm") {
     timeStr = "13:00";
   }
-  return new Date(`${booking.date}T${timeStr}:00`).getTime();
+  return wallClockToEpochMs(booking.date, timeStr, timeZone);
 }
 
 /** True if the actor is owner / manager of the org or a super-admin. */
@@ -464,11 +512,14 @@ export const cancel = mutation({
     let isBillable = false;
     if (room && room.cancellationPolicy === "bill_if_late") {
       const deadlineHours = room.cancellationDeadlineHours ?? 24;
-      const bookingDate = new Date(booking.date);
-      const deadline = new Date(
-        bookingDate.getTime() - deadlineHours * 60 * 60 * 1000
-      );
-      if (new Date() > deadline) isBillable = true;
+      // Deadline is measured from the slot's actual start instant (session
+      // startTime / am 08:00 / pm 13:00) in the org's timezone — not UTC
+      // midnight of the date — so cancelling in time is never over-billed.
+      const org = await ctx.db.get(booking.orgId);
+      const timeZone = org?.timezone ?? "Africa/Johannesburg";
+      const slotStartMs = bookingStartMs(booking, timeZone);
+      const deadlineMs = slotStartMs - deadlineHours * 60 * 60 * 1000;
+      if (Date.now() > deadlineMs) isBillable = true;
     }
 
     await ctx.db.patch(args.id, {

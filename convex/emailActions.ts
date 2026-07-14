@@ -171,8 +171,9 @@ export const sendInvoiceEmail = internalAction({
     });
     if (!invoice) return;
 
+    let res: Response;
     try {
-      await fetch(`${APP_URL}/api/email/send`, {
+      res = await fetch(`${APP_URL}/api/email/send`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -196,8 +197,31 @@ export const sendInvoiceEmail = internalAction({
         }),
       });
     } catch (e) {
+      // Network / relay failure — do NOT mark the invoice sent. Re-throw so the
+      // manual path (emailInvoices) records it as failed instead of "sent".
       console.error("Failed to send invoice email:", e);
+      throw new Error(
+        `Invoice email send failed (network) for ${args.invoiceId}`
+      );
     }
+
+    if (!res.ok) {
+      // The relay returns a non-2xx status when the underlying send failed (or
+      // it is unauthorised / misconfigured). Treat as failure — don't mark sent.
+      console.error(
+        `Failed to send invoice email for ${args.invoiceId}: HTTP ${res.status}`
+      );
+      throw new Error(
+        `Invoice email send failed (HTTP ${res.status}) for ${args.invoiceId}`
+      );
+    }
+
+    // Delivered — advance the invoice to "sent" and stamp sentAt. Idempotent
+    // and never downgrades a paid / overdue / void / cancelled invoice. Applies
+    // to both the auto (cron) and manual (emailInvoices) send paths.
+    await ctx.runMutation(internal.invoiceGenerationHelpers.markInvoiceSent, {
+      invoiceId: args.invoiceId,
+    });
   },
 });
 

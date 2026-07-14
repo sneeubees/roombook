@@ -2,6 +2,37 @@ import { v } from "convex/values";
 import { internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 
+/**
+ * Last calendar day (28–31) of the given year / zero-based month.
+ */
+export function lastDayOfMonth(year: number, monthIndex: number): number {
+  return new Date(year, monthIndex + 1, 0).getDate();
+}
+
+/**
+ * Billing period that ends on the invoice day of the given run month.
+ *
+ * The configured `invoiceDay` is CLAMPED to each month's last day, so short
+ * months (February, 30-day months) still bill for day-29/30/31 orgs instead
+ * of silently skipping. Consecutive run months yield CONTIGUOUS periods with
+ * no gaps and no overlaps: a period runs from the day AFTER the previous
+ * month's (clamped) invoice day through this month's (clamped) invoice day.
+ */
+export function billingPeriodForRunMonth(
+  invoiceDay: number,
+  year: number,
+  monthIndex: number
+): { periodStart: Date; periodEnd: Date } {
+  const endDay = Math.min(invoiceDay, lastDayOfMonth(year, monthIndex));
+  const periodEnd = new Date(year, monthIndex, endDay);
+  // Day after the previous month's clamped invoice day. Date normalisation
+  // rolls the +1 into the first of the current month when the previous month's
+  // day was its last (e.g. Feb 28 → Mar 1), keeping periods contiguous.
+  const prevEndDay = Math.min(invoiceDay, lastDayOfMonth(year, monthIndex - 1));
+  const periodStart = new Date(year, monthIndex - 1, prevEndDay + 1);
+  return { periodStart, periodEnd };
+}
+
 export const getOrgById = internalQuery({
   args: { orgId: v.id("organizations") },
   handler: async (ctx, args) => {
@@ -116,26 +147,70 @@ export const createInvoiceWithLineItems = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
-    // Check if a non-cancelled invoice already exists for this period.
-    // Cancelled invoices are left intact for audit purposes; a new invoice
-    // gets created alongside.
-    const existingForPeriod = await ctx.db
+    // Idempotency + double-bill guard. Look at every non-cancelled invoice
+    // already on record for this org + user (cancelled ones are left intact
+    // for audit and don't block regeneration).
+    const existingForUser = await ctx.db
       .query("invoices")
       .withIndex("by_org_user_period", (q) =>
-        q
-          .eq("orgId", args.orgId)
-          .eq("userId", args.userId)
-          .eq("periodStart", args.periodStart)
+        q.eq("orgId", args.orgId).eq("userId", args.userId)
       )
       .collect();
+    const activeForUser = existingForUser.filter(
+      (i) => i.status !== "cancelled"
+    );
 
-    const active = existingForPeriod.find((i) => i.status !== "cancelled");
-    if (active) return active._id;
+    // Exact (periodStart, periodEnd) match → this invoice already exists and
+    // the call is idempotent. Dedup on the PAIR, not periodStart alone, so a
+    // Jul 1–15 invoice no longer blocks a Jul 1–31 run.
+    const exact = activeForUser.find(
+      (i) =>
+        i.periodStart === args.periodStart && i.periodEnd === args.periodEnd
+    );
+    if (exact) return exact._id;
+
+    // A different-but-overlapping active period → skip rather than silently
+    // under- or over-bill. Surface it with a warning so an operator can
+    // reconcile (e.g. cancel + regenerate the correct period). Contiguous
+    // periods (touching endpoints only) do NOT overlap.
+    const overlapping = activeForUser.find(
+      (i) => i.periodStart <= args.periodEnd && args.periodStart <= i.periodEnd
+    );
+    if (overlapping) {
+      console.warn(
+        `[invoice] Skipping ${args.invoiceNumber} for org=${args.orgId} ` +
+          `user=${args.userId} period ${args.periodStart}..${args.periodEnd}: ` +
+          `overlaps existing active invoice ${overlapping.invoiceNumber} ` +
+          `(${overlapping.periodStart}..${overlapping.periodEnd}).`
+      );
+      return overlapping._id;
+    }
+
+    // Write-time uniqueness guard on the invoice number. Callers compute
+    // sequential numbers, but a concurrent manual + cron run could still
+    // collide — bump the trailing sequence until the number is free.
+    let invoiceNumber = args.invoiceNumber;
+    const lastDash = invoiceNumber.lastIndexOf("-");
+    const numberHead = invoiceNumber.slice(0, lastDash + 1);
+    let seq = parseInt(invoiceNumber.slice(lastDash + 1), 10);
+    if (!Number.isNaN(seq)) {
+      while (
+        await ctx.db
+          .query("invoices")
+          .withIndex("by_invoiceNumber", (q) =>
+            q.eq("invoiceNumber", invoiceNumber)
+          )
+          .first()
+      ) {
+        seq += 1;
+        invoiceNumber = `${numberHead}${String(seq).padStart(3, "0")}`;
+      }
+    }
 
     const invoiceId = await ctx.db.insert("invoices", {
       orgId: args.orgId,
       userId: args.userId,
-      invoiceNumber: args.invoiceNumber,
+      invoiceNumber,
       periodStart: args.periodStart,
       periodEnd: args.periodEnd,
       subtotal: args.subtotal,
@@ -169,7 +244,7 @@ export const createInvoiceWithLineItems = internalMutation({
       orgId: args.orgId,
       type: "invoice_generated",
       title: "New Invoice",
-      message: `Invoice ${args.invoiceNumber} for R${(args.total / 100).toFixed(2)} has been generated.`,
+      message: `Invoice ${invoiceNumber} for R${(args.total / 100).toFixed(2)} has been generated.`,
       metadata: { invoiceId },
       isRead: false,
       emailSent: false,
@@ -190,5 +265,29 @@ export const createInvoiceWithLineItems = internalMutation({
     }
 
     return invoiceId;
+  },
+});
+
+/**
+ * Mark an invoice as sent once its email has actually been delivered. Called
+ * from the invoice-email action (both the cron and the manual path) on a
+ * successful send. Only a `draft` invoice advances to `sent`; an invoice that
+ * is already paid / overdue / void / cancelled is never downgraded, and an
+ * already-sent invoice keeps its original `sentAt`.
+ */
+export const markInvoiceSent = internalMutation({
+  args: { invoiceId: v.id("invoices") },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.invoiceId);
+    if (!invoice) return;
+    if (invoice.status === "draft") {
+      await ctx.db.patch(args.invoiceId, {
+        status: "sent",
+        sentAt: Date.now(),
+      });
+    } else if (invoice.status === "sent" && invoice.sentAt === undefined) {
+      // Backfill a missing timestamp without changing status.
+      await ctx.db.patch(args.invoiceId, { sentAt: Date.now() });
+    }
   },
 });

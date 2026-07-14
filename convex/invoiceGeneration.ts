@@ -1,5 +1,9 @@
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import {
+  billingPeriodForRunMonth,
+  lastDayOfMonth,
+} from "./invoiceGenerationHelpers";
 
 export const generateInvoices = internalAction({
   args: {},
@@ -9,22 +13,27 @@ export const generateInvoices = internalAction({
 
     const today = new Date();
     const dayOfMonth = today.getDate();
+    const year = today.getFullYear();
+    const month = today.getMonth();
 
     for (const org of orgs) {
-      if (org.invoiceDayOfMonth !== dayOfMonth) continue;
       if (org.invoiceMode === "manual") continue; // Skip auto-gen for manual orgs
       if (org.invoicesEnabled === false) continue; // Skip if invoicing disabled
 
-      // Calculate billing period based on invoiceDay
+      // Clamp the configured invoice day to THIS month's last day so a day
+      // 29/30/31 org still fires in short months (Feb, 30-day months) instead
+      // of skipping a whole month's billing.
       const invoiceDay = org.invoiceDayOfMonth;
-      const periodEnd = new Date(today.getFullYear(), today.getMonth(), invoiceDay);
+      const effectiveDay = Math.min(invoiceDay, lastDayOfMonth(year, month));
+      if (effectiveDay !== dayOfMonth) continue;
 
-      let periodStart: Date;
-      if (invoiceDay >= 28) {
-        periodStart = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), 1);
-      } else {
-        periodStart = new Date(periodEnd.getFullYear(), periodEnd.getMonth() - 1, invoiceDay + 1);
-      }
+      // Contiguous period: day after the previous month's (clamped) invoice
+      // day through this month's (clamped) invoice day. No gaps, no overlaps.
+      const { periodStart, periodEnd } = billingPeriodForRunMonth(
+        invoiceDay,
+        year,
+        month
+      );
 
       const periodStartStr = periodStart.toISOString().split("T")[0];
       const periodEndStr = periodEnd.toISOString().split("T")[0];
@@ -60,8 +69,18 @@ export const generateInvoices = internalAction({
       const vatEnabled = org.vatEnabled !== false;
       const vatRate = vatEnabled ? org.vatRate : 0;
 
+      // Continue the sequence past whatever is already in the books for this
+      // prefix + year + month (cancelled invoices count too) so cron numbers
+      // never collide with manually generated ones.
+      const yyyy = periodEnd.getFullYear();
+      const mm = String(periodEnd.getMonth() + 1).padStart(2, "0");
+      const maxSeq = await ctx.runQuery(
+        internal.invoiceGenerationHelpers.getMaxSeqForMonth,
+        { orgId: org._id, prefix: org.invoicePrefix, year: yyyy, month: mm }
+      );
+
       // Generate invoice for each user
-      let invoiceSeq = 1;
+      let invoiceSeq = maxSeq + 1;
       for (const [, data] of byUser) {
         const userId = data.userId;
         const total = data.bookings.reduce(
