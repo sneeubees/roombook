@@ -5,7 +5,7 @@ import { api } from "../../../../convex/_generated/api";
 import { useOrgData } from "@/hooks/use-org-data";
 import { useUserRole } from "@/hooks/use-user-role";
 import Link from "next/link";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -23,6 +23,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Table,
   TableBody,
@@ -39,7 +41,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, X, Trash2 } from "lucide-react";
+import { Plus, X, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import type { Id } from "../../../../convex/_generated/dataModel";
@@ -63,6 +65,9 @@ export default function TeamPage() {
   const setMembershipPrefs = useMutation(
     api.organizations.setMembershipPreferences
   );
+  const updateMemberDetails = useMutation(
+    api.organizations.updateMemberDetails
+  );
 
   const invoicingOn = convexOrg?.invoicesEnabled !== false;
 
@@ -83,6 +88,55 @@ export default function TeamPage() {
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [removeUserId, setRemoveUserId] = useState<Id<"users"> | null>(null);
   const [removeMemberName, setRemoveMemberName] = useState("");
+
+  const [editUserId, setEditUserId] = useState<Id<"users"> | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+
+  const editMemberDetails = useQuery(
+    api.organizations.getMemberDetails,
+    editUserId && orgId ? { orgId, userId: editUserId } : "skip"
+  );
+
+  useEffect(() => {
+    if (editMemberDetails) {
+      setEditName(editMemberDetails.fullName);
+      setEditPhone(editMemberDetails.phone);
+    }
+  }, [editMemberDetails]);
+
+  function openEditMember(userId: Id<"users">, currentName: string) {
+    setEditUserId(userId);
+    setEditName(currentName);
+    setEditPhone("");
+  }
+
+  async function handleSaveMemberDetails() {
+    if (!editUserId || !orgId) return;
+    const name = editName.trim();
+    if (!name) {
+      toast.error("Name is required");
+      return;
+    }
+    setEditSaving(true);
+    try {
+      await updateMemberDetails({
+        orgId,
+        userId: editUserId,
+        fullName: name,
+        phone: editPhone.trim() || undefined,
+      });
+      toast.success("Member details updated");
+      setEditUserId(null);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to update member"
+      );
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   async function handleRemoveMember() {
     if (!removeUserId || !orgId) return;
@@ -239,19 +293,34 @@ export default function TeamPage() {
                       {format(new Date(membership._creationTime), "d MMM yyyy")}
                     </TableCell>
                     <TableCell>
-                      {!isMe && role !== "owner" && isOwner && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => {
-                            setRemoveUserId(membership.userId);
-                            setRemoveMemberName(displayName);
-                            setRemoveDialogOpen(true);
-                          }}
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                      {isOwner && !isMe && (
+                        <div className="flex items-center justify-end gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            title="Edit member details"
+                            onClick={() =>
+                              openEditMember(membership.userId, displayName)
+                            }
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          {role !== "owner" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              title="Remove member"
+                              onClick={() => {
+                                setRemoveUserId(membership.userId);
+                                setRemoveMemberName(displayName);
+                                setRemoveDialogOpen(true);
+                              }}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </TableCell>
                   </TableRow>
@@ -340,6 +409,56 @@ export default function TeamPage() {
               disabled={isSubmitting}
             >
               {isSubmitting ? "Removing..." : "Remove Member"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={editUserId !== null}
+        onOpenChange={(open) => {
+          if (!open) setEditUserId(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit member details</DialogTitle>
+            <DialogDescription>
+              Update this member&apos;s name and contact number — for example
+              when the person using this login changes. Their login email and
+              role are not changed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="member-name">Full name</Label>
+              <Input
+                id="member-name"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="e.g., Jane Dlamini"
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="member-phone">Phone (optional)</Label>
+              <Input
+                id="member-phone"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="e.g., 082 123 4567"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditUserId(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveMemberDetails}
+              disabled={editSaving || !editName.trim()}
+            >
+              {editSaving ? "Saving..." : "Save changes"}
             </Button>
           </DialogFooter>
         </DialogContent>

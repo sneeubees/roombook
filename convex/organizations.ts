@@ -330,6 +330,85 @@ export const updateMemberRole = mutation({
   },
 });
 
+// Owner (or super admin) reads a member's editable personal details to
+// pre-fill the edit form. Scoped to members of the caller's own org.
+export const getMemberDetails = query({
+  args: { orgId: v.id("organizations"), userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const actorId = await getAuthUserId(ctx);
+    if (!actorId) throw new Error("Not authenticated");
+    const actorProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", actorId))
+      .unique();
+    const isSuperAdmin = actorProfile?.isSuperAdmin === true;
+    if (!isSuperAdmin) {
+      const actor = await getMembershipFor(ctx, args.orgId, actorId);
+      if (!actor || actor.role !== "owner") {
+        throw new Error("Only the owner or a super admin can view member details");
+      }
+    }
+    const target = await getMembershipFor(ctx, args.orgId, args.userId);
+    if (!target) throw new Error("Member not found in this organisation");
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .unique();
+    return {
+      fullName: profile?.fullName ?? "",
+      phone: profile?.phone ?? "",
+    };
+  },
+});
+
+// Owner (or super admin) edits a member's personal details — e.g. when the
+// person using a shared login changes (a new receptionist on the same email).
+// Updates only the target's profile name/phone; their login, email and role
+// are untouched. Scoped to members of the caller's own org.
+export const updateMemberDetails = mutation({
+  args: {
+    orgId: v.id("organizations"),
+    userId: v.id("users"),
+    fullName: v.string(),
+    phone: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const actorId = await getAuthUserId(ctx);
+    if (!actorId) throw new Error("Not authenticated");
+    const actorProfile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", actorId))
+      .unique();
+    const isSuperAdmin = actorProfile?.isSuperAdmin === true;
+    if (!isSuperAdmin) {
+      const actor = await getMembershipFor(ctx, args.orgId, actorId);
+      if (!actor || actor.role !== "owner") {
+        throw new Error("Only the owner or a super admin can edit member details");
+      }
+    }
+    const target = await getMembershipFor(ctx, args.orgId, args.userId);
+    if (!target) throw new Error("Member not found in this organisation");
+
+    const fullName = args.fullName.trim();
+    if (!fullName) throw new Error("Name is required");
+    const phone = args.phone?.trim() || undefined;
+
+    const profile = await ctx.db
+      .query("userProfiles")
+      .withIndex("by_user", (q) => q.eq("userId", args.userId))
+      .unique();
+    if (profile) {
+      await ctx.db.patch(profile._id, { fullName, phone });
+    } else {
+      await ctx.db.insert("userProfiles", {
+        userId: args.userId,
+        fullName,
+        phone,
+      });
+    }
+  },
+});
+
 /**
  * Owner submits an EFT subscription request. The org's chosen tier and
  * payment reference are recorded; status drops back to pending_approval so
